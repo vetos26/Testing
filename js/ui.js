@@ -17,6 +17,8 @@ export class UI {
     this.onRestart = onRestart;
     this.onDifficulty = onDifficulty;
     this.paused = false;
+    this.isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints || 0) > 0;
+    if (this.isTouch) document.body.classList.add('touch');
     this.toasts = [];
     this.pings = [];
     this._cmdT = 0;
@@ -46,8 +48,9 @@ export class UI {
   }
 
   destroy() {
-    this.e.mm.onmousedown = null;
-    this.e.mm.onmousemove = null;
+    const mm = this.e.mm;
+    mm.removeEventListener('mousedown', this._mmDown);
+    mm.removeEventListener('mousemove', this._mmMoveM);
     window.removeEventListener('mouseup', this._mmUp);
   }
 
@@ -56,16 +59,26 @@ export class UI {
     this.e.btnHelp.onclick = () => this.showHelp();
     this.e.btnRestart.onclick = () => this.onRestart && this.onRestart();
 
+    // кнопки быстрого выбора (видны только на тач-устройствах, но привязываем всегда)
+    const bArmy = document.getElementById('btnArmy');
+    const bWork = document.getElementById('btnWorkers');
+    const bBase = document.getElementById('btnBase');
+    if (bArmy) bArmy.onclick = () => this.input.selectAllOf('military');
+    if (bWork) bWork.onclick = () => this.input.selectAllOf('worker');
+    if (bBase) bBase.onclick = () => this.input.selectBase();
+
     // миникарта
     const mm = this.e.mm;
     mm.addEventListener('contextmenu', e => e.preventDefault());
-    mm.addEventListener('mousedown', e => {
+    this._mmDown = e => {
       e.preventDefault();
       this._draggingMap = true;
       this._mmJump(e);
-    });
-    mm.addEventListener('mousemove', e => { if (this._draggingMap) this._mmJump(e); });
+    };
+    this._mmMoveM = e => { if (this._draggingMap) this._mmJump(e); };
     this._mmUp = () => { this._draggingMap = false; };
+    mm.addEventListener('mousedown', this._mmDown);
+    mm.addEventListener('mousemove', this._mmMoveM);
     window.addEventListener('mouseup', this._mmUp);
   }
 
@@ -116,6 +129,21 @@ export class UI {
     const diffs = Object.values(DIFFICULTIES)
       .map(d => `<label class="diff"><input type="radio" name="diff" value="${d.key}" ${d.key === 'normal' ? 'checked' : ''}><span>${d.name}</span></label>`)
       .join('');
+    const controls = this.isTouch ? `
+          <div>Касание — выбор юнита/здания · тап по земле — приказ</div>
+          <div>Перетаскивание — камера · щипок — зум · двойной тап — все юниты типа</div>
+          <div>Кнопки справа: ⚔ армия · ⛏ рабочие · 🏛 к базе</div>
+          <div>Кнопки в панели команд: постройки и обучение войск</div>
+          <div>Тап по миникарте — перейти к месту</div>
+        ` : `
+          <div>ЛКМ / рамка — выбор юнитов · двойной ЛКМ — все юниты типа</div>
+          <div>ПКМ — приказ: идти / добывать / атаковать / строить</div>
+          <div><kbd>A</kbd> + ЛКМ — атака-движение · <kbd>S</kbd> — стоп · <kbd>H</kbd> — к штабу</div>
+          <div><kbd>Ctrl</kbd>+<kbd>1..5</kbd> — создать группу · <kbd>1..5</kbd> — вызвать</div>
+          <div>Стрелки / край экрана — камера · колесо — зум · <kbd>Пробел</kbd> — пауза</div>
+          <div>ПКМ при выбранном здании — точка сбора</div>
+        `;
+    const rotate = this.isTouch ? '<p class="hint rotateHint">↻ Поверните устройство горизонтально — так удобнее</p>' : '';
     this._showOverlay(`
       <div class="panel start">
         <h1>РАЗЛОМ</h1>
@@ -123,15 +151,11 @@ export class UI {
         <div class="diffrow">${diffs}</div>
         <div class="controls">
           <b>Управление</b>
-          <div>ЛКМ / рамка — выбор юнитов · двойной ЛКМ — все юниты типа</div>
-          <div>ПКМ — приказ: идти / добывать / атаковать / строить</div>
-          <div><kbd>A</kbd> + ЛКМ — атака-движение · <kbd>S</kbd> — стоп · <kbd>H</kbd> — к штабу</div>
-          <div><kbd>Ctrl</kbd>+<kbd>1..5</kbd> — создать группу · <kbd>1..5</kbd> — вызвать</div>
-          <div>Стрелки / край экрана — камера · колесо — зум · <kbd>Пробел</kbd> — пауза</div>
-          <div>ПКМ при выбранном здании — точка сбора</div>
+          ${controls}
         </div>
         <button id="btnStart" class="primary">▶ Начать игру</button>
         <p class="hint">Цель: уничтожить штаб противника. Постройте казарму и соберите армию.</p>
+        ${rotate}
       </div>
     `, 'start');
     this.e.overlay.style.display = 'flex';
@@ -161,10 +185,13 @@ export class UI {
   showHelp() {
     this.paused = true;
     this.e.btnPause.textContent = '▶';
-    this._showOverlay(`
-      <div class="panel help">
-        <h2>Управление</h2>
-        <div class="controls">
+    const controls = this.isTouch ? `
+          <div>Касание — выбор · тап по земле/врагу — приказ (идти, атаковать, добывать, достроить)</div>
+          <div>Перетаскивание — камера · щипок — зум · двойной тап — все юниты типа</div>
+          <div>Кнопки справа: ⚔ армия · ⛏ рабочие · 🏛 к базе</div>
+          <div>Выбранное здание: тап по земле — точка сбора</div>
+          <div>Тап по миникарте — перейти к месту</div>
+        ` : `
           <div>ЛКМ / рамка — выбор · двойной ЛКМ — все юниты типа</div>
           <div>ПКМ — приказ (идти / добывать / атаковать / достроить)</div>
           <div><kbd>A</kbd> + ЛКМ — атака-движение · <kbd>S</kbd> — стоп · <kbd>H</kbd> — к штабу</div>
@@ -173,7 +200,11 @@ export class UI {
           <div>Выбранный рабочий: <kbd>Q</kbd> штаб · <kbd>W</kbd> казарма · <kbd>E</kbd> дом · <kbd>R</kbd> башня</div>
           <div>Казарма: <kbd>Q</kbd> мечник · <kbd>W</kbd> лучник</div>
           <div>ПКМ при выбранном здании — точка сбора новых войск</div>
-        </div>
+        `;
+    this._showOverlay(`
+      <div class="panel help">
+        <h2>Управление</h2>
+        <div class="controls">${controls}</div>
         <button id="btnClose" class="primary">Продолжить</button>
       </div>
     `, 'help');

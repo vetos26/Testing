@@ -132,6 +132,23 @@ function clickBase() {
   window.dispatchEvent(new window.MouseEvent('mouseup', { button: 0, clientX: x, clientY: y, bubbles: true }));
 }
 
+// синтетические touch-события (jsdom не имеет TouchEvent)
+function touchE(type, touches, changed) {
+  const e = new window.Event(type, { bubbles: true, cancelable: true });
+  e.touches = touches.map(t => ({ identifier: t.id ?? 0, clientX: t.x, clientY: t.y }));
+  e.changedTouches = (changed ?? touches).map(t => ({ identifier: t.id ?? 0, clientX: t.x, clientY: t.y }));
+  return e;
+}
+function touchTap(x, y, dbl = false) {
+  const canvas = document.getElementById('game');
+  canvas.dispatchEvent(touchE('touchstart', [{ x, y }]));
+  canvas.dispatchEvent(touchE('touchend', [], [{ x, y }]));
+  if (dbl) {
+    canvas.dispatchEvent(touchE('touchstart', [{ x, y }]));
+    canvas.dispatchEvent(touchE('touchend', [], [{ x, y }]));
+  }
+}
+
 check('выбор штаба кликом и панель команд', () => {
   clickBase();
   pump(10); // ждём перерисовку команд
@@ -210,9 +227,108 @@ pump(120);
 
 check('после рестарта HUD живой', () => {
   clickBase();
-  pump(6);
+  pump(10);
   if (!document.getElementById('cmdCard').querySelectorAll('.cmd').length)
     throw new Error('команды не отрисованы после рестарта');
+});
+
+// ---------- тач-управление ----------
+check('тач: тап выделяет штаб', () => {
+  const S = window.__rts;
+  const { x, y } = baseScreen();
+  touchTap(x, y);
+  pump(8);
+  if (!S.input.selected.length || S.input.selected[0].def.key !== 'base')
+    throw new Error('штаб не выделен тапом');
+});
+
+check('тач: панель команд от тапа', () => {
+  const cc = document.getElementById('cmdCard');
+  if (!cc.querySelectorAll('.cmd').length) throw new Error('команды не отрисованы');
+});
+
+check('тач: тап по земле — приказ (маркер)', () => {
+  const S = window.__rts;
+  document.getElementById('btnWorkers').click();
+  pump(4);
+  if (!S.input.selected.length || !S.input.selected.every(u => u.def.kind === 'worker'))
+    throw new Error('кнопка рабочих не выбрала рабочих');
+  touchTap(700, 300);
+  pump(4);
+  if (!S.input.marker) throw new Error('маркер приказа не появился');
+});
+
+check('тач: перетаскивание двигает камеру', () => {
+  const S = window.__rts;
+  S.camera.centerOn(S.game.playerBase(0).x, S.game.playerBase(0).y); // камера у левого края
+  pump(1);
+  const camX0 = S.camera.x;
+  const canvas = document.getElementById('game');
+  canvas.dispatchEvent(touchE('touchstart', [{ x: 300, y: 350 }]));
+  for (let i = 1; i <= 6; i++) {
+    canvas.dispatchEvent(touchE('touchmove', [{ x: 300 + i * 25, y: 350 }]));
+  }
+  canvas.dispatchEvent(touchE('touchend', [], [{ x: 450, y: 350 }]));
+  if (S.camera.x <= camX0) throw new Error(`камера не сдвинулась (${S.camera.x} <= ${camX0})`);
+});
+
+check('тач: щипок меняет зум', () => {
+  const S = window.__rts;
+  const z0 = S.camera.zoom;
+  const canvas = document.getElementById('game');
+  canvas.dispatchEvent(touchE('touchstart', [{ id: 1, x: 300, y: 300 }, { id: 2, x: 500, y: 300 }]));
+  for (let i = 1; i <= 5; i++) {
+    canvas.dispatchEvent(touchE('touchmove', [
+      { id: 1, x: 300 - i * 30, y: 300 },
+      { id: 2, x: 500 + i * 30, y: 300 },
+    ]));
+  }
+  canvas.dispatchEvent(touchE('touchend', [{ id: 2, x: 650, y: 300 }], [{ id: 1, x: 150, y: 300 }]));
+  canvas.dispatchEvent(touchE('touchend', [], []));
+  if (Math.abs(S.camera.zoom - z0) < 0.02) throw new Error(`зум не изменился (${S.camera.zoom} = ${z0})`);
+});
+
+check('тач: двойной тап — все юниты типа', () => {
+  const S = window.__rts;
+  S.camera.zoom = 0.5; // отъезд, чтобы видеть всех рабочих у базы
+  const base = S.game.playerBase(0);
+  S.camera.centerOn(base.x, base.y);
+  pump(1);
+  const w = S.game.unitsOf(0).find(u => u.def.kind === 'worker');
+  if (!w) throw new Error('нет рабочих');
+  const p = S.camera.worldToScreen(w.x, w.y);
+  touchTap(Math.round(p.x), Math.round(p.y), true);
+  pump(6);
+  if (S.input.selected.length < 2) throw new Error(`двойной тап выбрал ${S.input.selected.length}`);
+  S.camera.zoom = 1;
+});
+
+check('тач: тап по миникарте двигает камеру', () => {
+  const S = window.__rts;
+  const camX0 = S.camera.x;
+  const mm = document.getElementById('minimap');
+  mm.dispatchEvent(touchE('touchstart', [{ x: 900, y: 40 }]));
+  if (S.camera.x === camX0) throw new Error('камера не прыгнула по миникарте');
+});
+
+check('тач: размещение дома тапом', () => {
+  const S = window.__rts;
+  document.getElementById('btnWorkers').click();
+  pump(4);
+  // выбираем постройку дома через панель команд (кнопка «Дом»)
+  const cc = document.getElementById('cmdCard');
+  const btn = [...cc.querySelectorAll('.cmd')].find(b => b.textContent.includes('Дом'));
+  if (!btn) throw new Error('кнопки «Дом» нет');
+  btn.click();
+  pump(2);
+  if (!S.input.placement) throw new Error('режим размещения не включился');
+  // тап рядом с базой — ставим площадку (может и не получиться по месту, режим должен сняться при успехе)
+  const { x, y } = baseScreen();
+  touchTap(x + 70, y + 60);
+  pump(4);
+  const placed = S.input.placement === null;
+  const site = S.game.buildingsOf(0).find(b => b.def.key === 'house' && !b.constructed);
+  if (!placed && !site) throw new Error('дом не поставлен тапом');
 });
 
 // --- отчёт ---

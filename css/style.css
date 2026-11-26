@@ -11,7 +11,9 @@ html, body {
   color: #d5dbe3;
   user-select: none;
   -webkit-user-select: none;
+  overscroll-behavior: none;
 }
+body.touch { -webkit-touch-callout: none; }
 
 #app { position: fixed; inset: 0; }
 
@@ -20,6 +22,7 @@ html, body {
   width: 100%; height: 100%;
   display: block;
   cursor: crosshair;
+  touch-action: none;
 }
 
 /* ---------- верхняя панель ---------- */
@@ -68,12 +71,38 @@ html, body {
 .toast.warn { border-color: rgba(232,193,79,0.6);  color: #f5df9a; }
 .toast.bad  { border-color: rgba(224,85,85,0.7);   color: #ffb3b3; }
 
+/* ---------- кнопки быстрого выбора (тач) ---------- */
+#mobileActions { display: none; }
+body.touch #mobileActions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-64%);
+  z-index: 15;
+}
+body.touch #mobileActions button {
+  width: 50px; height: 50px;
+  font-size: 23px;
+  background: rgba(16,20,26,0.82);
+  border: 1px solid rgba(255,255,255,0.22);
+  border-radius: 13px;
+  color: #d5dbe3;
+  cursor: pointer;
+}
+body.touch #mobileActions button:active {
+  background: rgba(110,180,247,0.45);
+}
+
 /* ---------- нижняя панель ---------- */
 #bottombar {
   position: absolute; left: 0; right: 0; bottom: 0;
   height: 196px;
   display: flex; align-items: stretch; gap: 10px;
   padding: 10px;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
   background: linear-gradient(0deg, rgba(14,17,22,0.95), rgba(14,17,22,0.78));
   border-top: 1px solid rgba(255,255,255,0.08);
   z-index: 10;
@@ -249,3 +278,54 @@ button.primary {
 }
 button.primary:hover { filter: brightness(1.12); }
 .hint { margin-top: 14px; font-size: 12.5px; color: #8b95a1; }
+.rotateHint { color: #6fb4f7; }
+
+/* ---------- тач: крупные кнопки команд, без хоткеев ---------- */
+body.touch .cmd { padding: 7px 9px; }
+body.touch .cmd .ico { font-size: 25px; }
+body.touch .cmd .lbl { font-size: 12.5px; }
+body.touch .cmd .hk { display: none; }
+body.touch #topbar button { width: 38px; height: 36px; font-size: 17px; }
+
+/* ---------- маленькие экраны и портретная ориентация ---------- */
+@media (max-width: 780px), (max-height: 520px) {
+  #topbar { height: 40px; gap: 7px; padding: 0 8px; }
+  #topbar .res { font-size: 14px; min-width: 0; }
+
+  #bottombar {
+    flex-wrap: wrap;
+    height: auto;
+    gap: 8px;
+    padding: 8px;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  }
+  #minimapWrap { flex: 0 0 104px; }
+  #minimap { width: 104px; height: 104px; }
+  #selPanel {
+    flex: 1 1 110px;
+    min-width: 0;
+    max-height: 112px;
+    overflow: hidden;
+    padding: 5px 8px;
+  }
+  .selHint { font-size: 11px; line-height: 1.5; }
+  .portrait { width: 40px; height: 40px; font-size: 22px; margin-right: 8px; }
+  .selName { font-size: 13px; }
+  .hpbar { width: 120px; height: 8px; }
+  .mini { width: 38px; }
+  .miniIco { font-size: 15px; line-height: 19px; }
+
+  #cmdCard {
+    flex: 1 1 100%;
+    grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
+    grid-auto-rows: 56px;
+    gap: 5px;
+  }
+  .cmd .ico { font-size: 20px; }
+  .cmd .lbl { font-size: 11px; }
+  .cmd .cost { font-size: 10px; }
+
+  .panel { max-width: 92vw; max-height: 86vh; max-height: 86dvh; overflow: auto; padding: 20px 22px; }
+  .panel h1 { font-size: 30px; letter-spacing: 4px; }
+  .diffrow { flex-wrap: wrap; }
+}

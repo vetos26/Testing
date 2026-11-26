@@ -5,6 +5,7 @@
 import { Game } from './game.js';
 import { Camera } from './camera.js';
 import { Input } from './input.js';
+import { TouchController } from './touch.js';
 import { Renderer } from './render.js';
 import { UI } from './ui.js';
 
@@ -18,11 +19,13 @@ function resize() {
   canvas.height = Math.round(canvas.clientHeight * dpr);
 }
 window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', resize);
 
 function newGame(diff) {
   if (diff) difficulty = diff;
   if (session) {
     session.input.destroy();
+    session.touch.destroy();
     session.ui.destroy();
   }
   const seed = (Date.now() ^ (Math.random() * 0xffffffff)) >>> 0;
@@ -36,6 +39,7 @@ function newGame(diff) {
     onDifficulty: () => {},
   });
   input.ui = ui;
+  const touch = new TouchController({ canvas, input, camera, ui });
 
   game.onEvent = (type, d) => {
     if (type === 'toast') ui.toast(d.msg, d.kind);
@@ -49,7 +53,7 @@ function newGame(diff) {
   if (base) camera.centerOn(base.x, base.y);
   resize();
 
-  session = { game, camera, input, renderer, ui };
+  session = { game, camera, input, touch, renderer, ui };
   if (typeof window !== 'undefined') window.__rts = session; // отладка/тесты
   return session;
 }

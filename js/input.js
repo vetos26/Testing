@@ -1,5 +1,6 @@
 // ============================================================
 // input.js — мышь и клавиатура: выбор, приказы, размещение зданий
+// + единая точка входа для тач-ввода (tap / selectAllOf)
 // ============================================================
 
 import { TILE, BUILDING_DEFS } from './config.js';
@@ -19,34 +20,45 @@ export class Input {
     this.groups = {};           // цифра → массив сущностей
     this.lastClick = { t: 0, x: 0, y: 0, def: null };
     this.marker = null;         // {x,y,t,kind} — маркер приказа в мире
+    this.lastWasTouch = false;  // последний ввод был касанием (гасит краевой скролл)
     this._destroyed = false;
     this._bind();
   }
 
   destroy() {
     this._destroyed = true;
-    window.removeEventListener('keydown', this._onKey);
-    window.removeEventListener('keyup', this._onKeyUp);
+    const c = this.canvas;
+    c.removeEventListener('contextmenu', this._ctxMenu);
+    c.removeEventListener('mousedown', this._onDown);
+    c.removeEventListener('wheel', this._onWheel);
     window.removeEventListener('mousemove', this._onMove);
     window.removeEventListener('mouseup', this._onUp);
+    window.removeEventListener('keydown', this._onKey);
+    window.removeEventListener('keyup', this._onKeyUp);
   }
 
   _bind() {
     const c = this.canvas;
-    c.addEventListener('contextmenu', e => e.preventDefault());
 
-    c.addEventListener('mousedown', e => {
+    this._ctxMenu = e => e.preventDefault();
+    c.addEventListener('contextmenu', this._ctxMenu);
+
+    this._onDown = e => {
       e.preventDefault();
+      this.lastWasTouch = false;
       const m = this._mousePos(e);
       this.mouse.x = m.x; this.mouse.y = m.y; this.mouse.inside = true;
       if (e.button === 0) this._leftDown(e, m);
       else if (e.button === 2) this._rightDown(e, m);
-    });
+    };
+    c.addEventListener('mousedown', this._onDown);
 
     this._onMove = e => {
+      this.lastWasTouch = false;
       const m = this._mousePos(e);
       this.mouse.x = m.x; this.mouse.y = m.y;
-      this.mouse.inside = m.x >= 0 && m.y >= 0 && m.x <= this.canvas.clientWidth && m.y <= this.canvas.clientHeight;
+      this.mouse.inside = m.x >= 0 && m.y >= 0 &&
+        m.x <= this.canvas.clientWidth && m.y <= this.canvas.clientHeight;
       if (this.drag) { this.drag.x1 = m.x; this.drag.y1 = m.y; }
     };
     window.addEventListener('mousemove', this._onMove);
@@ -57,12 +69,13 @@ export class Input {
     };
     window.addEventListener('mouseup', this._onUp);
 
-    c.addEventListener('wheel', e => {
+    this._onWheel = e => {
       e.preventDefault();
       const m = this._mousePos(e);
       const factor = Math.exp(-e.deltaY * 0.0012);
       this.camera.zoomAt(m.x, m.y, factor);
-    }, { passive: false });
+    };
+    c.addEventListener('wheel', this._onWheel, { passive: false });
 
     this._onKey = e => this._keyDown(e);
     window.addEventListener('keydown', this._onKey);
@@ -83,6 +96,24 @@ export class Input {
     this.selected = list.filter(s => !s.dead);
     for (const s of this.selected) s.selected = true;
     if (this.ui) this.ui.onSelectionChanged();
+  }
+
+  // Быстрый выбор: 'military' | 'worker' | 'all'
+  selectAllOf(kind = 'all') {
+    const list = this.game.entities.filter(e =>
+      !e.dead && e.kind === 'unit' && e.owner === 0 &&
+      (kind === 'all' ||
+        (kind === 'military' && e.def.kind !== 'worker') ||
+        (kind === 'worker' && e.def.kind === 'worker')));
+    if (list.length) this.setSelection(list);
+  }
+
+  selectBase() {
+    const b = this.game.playerBase(0);
+    if (b) {
+      this.setSelection([b]);
+      this.camera.centerOn(b.x, b.y);
+    }
   }
 
   _selectAt(w, add) {
@@ -135,8 +166,11 @@ export class Input {
       this._selectBox(d.x0, d.y0, d.x1, d.y1);
       return;
     }
-    // одиночный клик (+двойной — выделить всех такого типа)
-    const wp = this.camera.screenToWorld(d.x1, d.y1);
+    this._clickAt(d.x1, d.y1, e.shiftKey);
+  }
+
+  _clickAt(sx, sy, shiftKey) {
+    const wp = this.camera.screenToWorld(sx, sy);
     const now = performance.now();
     const ent = this.game.entityAt(wp.x, wp.y, { hideHidden: true });
 
@@ -145,9 +179,40 @@ export class Input {
       dist2(wp.x, wp.y, this.lastClick.x, this.lastClick.y) < 20 * 20) {
       this._selectSameTypeOnScreen(ent);
     } else {
-      this._selectAt(wp, e.shiftKey);
+      this._selectAt(wp, shiftKey);
     }
     this.lastClick = { t: now, x: wp.x, y: wp.y, def: ent ? ent.def : null };
+  }
+
+  // ---------- тач: тап по экрану ----------
+  tap(sx, sy, dbl = false) {
+    if (this.placement) {
+      this._tryPlace(false);
+      return;
+    }
+    if (this.attackMoveArmed) {
+      this.attackMoveArmed = false;
+      this._orderAttackMove({ x: sx, y: sy });
+      return;
+    }
+    const wp = this.camera.screenToWorld(sx, sy);
+    const ent = this.game.entityAt(wp.x, wp.y, { hideHidden: true });
+
+    // свой объект — выделение (двойной тап — все такие юниты на экране)
+    if (ent && ent.owner === 0) {
+      if (dbl && ent.kind === 'unit') this._selectSameTypeOnScreen(ent);
+      else this.setSelection([ent]);
+      return;
+    }
+    // есть выделение — умный приказ (идти / атаковать / добывать / достроить / сбор)
+    const sel = this.selected.filter(s => !s.dead);
+    if (sel.length) {
+      this._smartOrder({ x: sx, y: sy });
+      return;
+    }
+    // враг без выделения — показать его карточку
+    if (ent) this.setSelection([ent]);
+    else this.setSelection([]);
   }
 
   _rightDown(e, m) {
@@ -310,9 +375,9 @@ export class Input {
       if (k.has('ArrowUp')) py -= 1;
       if (k.has('ArrowDown')) py += 1;
     }
-    // скролл у края экрана
+    // скролл у края экрана (только для мыши, не тача)
     const M = 24;
-    if (this.mouse.inside) {
+    if (this.mouse.inside && !this.lastWasTouch) {
       if (this.mouse.x < M) px -= 1;
       if (this.mouse.x > this.canvas.clientWidth - M) px += 1;
       if (this.mouse.y < M) py -= 1;

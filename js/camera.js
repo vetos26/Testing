@@ -11,7 +11,7 @@ export class Camera {
     this.x = 0;
     this.y = 0;
     this.zoom = 1;
-    this.MIN_ZOOM = 0.55;
+    this.MIN_ZOOM = 0.45;
     this.MAX_ZOOM = 1.8;
   }
 
