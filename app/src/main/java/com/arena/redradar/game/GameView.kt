@@ -11,6 +11,7 @@ import android.graphics.Typeface
 import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import com.arena.redradar.App
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.hypot
@@ -126,27 +127,34 @@ class GameView(
 
     // ---------- цикл ----------
     override fun run() {
-        val dt = 1f / 60f
-        var prev = System.nanoTime()
-        while (running) {
-            val now = System.nanoTime()
-            var elapsed = (now - prev) / 1_000_000_000f
-            prev = now
-            if (elapsed > 0.25f) elapsed = 0.25f
-            if (!paused) {
-                var left = elapsed
-                while (left > 0f && running) {
-                    val step = min(dt, left)
-                    sim.update(step)
-                    left -= step
+        try {
+            val dt = 1f / 60f
+            var prev = System.nanoTime()
+            while (running) {
+                val now = System.nanoTime()
+                var elapsed = (now - prev) / 1_000_000_000f
+                prev = now
+                if (elapsed > 0.25f) elapsed = 0.25f
+                if (!paused) {
+                    var left = elapsed
+                    while (left > 0f && running) {
+                        val step = min(dt, left)
+                        sim.update(step)
+                        left -= step
+                    }
+                }
+                val canvas = try { holder.lockCanvas() } catch (e: Exception) { null }
+                if (canvas != null) {
+                    try { drawFrame(canvas) } finally {
+                        try { holder.unlockCanvasAndPost(canvas) } catch (e: Exception) { }
+                    }
                 }
             }
-            val canvas = try { holder.lockCanvas() } catch (e: Exception) { null }
-            if (canvas != null) {
-                try { drawFrame(canvas) } finally {
-                    try { holder.unlockCanvasAndPost(canvas) } catch (e: Exception) { }
-                }
-            }
+        } catch (t: Throwable) {
+            // сбой игрового цикла: пишем стек и возвращаемся в меню вместо падения
+            running = false
+            try { App.instance.writeThrowable(t, "GameView.run") } catch (_: Throwable) { }
+            try { onExit() } catch (_: Throwable) { }
         }
     }
 

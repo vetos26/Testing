@@ -155,6 +155,7 @@ def build_manifest():
     ])
     chunks += end_el(pool, "uses-sdk")
     chunks += start_el(pool, "application", [
+        ('android', "name", "com.arena.redradar.App", TYPE_STRING, pool.add("com.arena.redradar.App")),
         ('android', "label", "Красный радар", TYPE_STRING, pool.add("Красный радар")),
         ('android', "allowBackup", None, TYPE_BOOL, 0xFFFFFFFF),
         ('android', "hardwareAccelerated", None, TYPE_BOOL, 0xFFFFFFFF),

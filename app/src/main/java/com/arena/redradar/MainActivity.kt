@@ -5,7 +5,6 @@ import android.content.SharedPreferences
 import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Bundle
-import android.view.Gravity
 import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -14,9 +13,6 @@ import com.arena.redradar.game.GameView
 import com.arena.redradar.game.Sound
 import com.arena.redradar.menu.MenuView
 import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 class MainActivity : Activity() {
 
@@ -36,54 +32,33 @@ class MainActivity : Activity() {
             WindowManager.LayoutParams.FLAG_FULLSCREEN,
             WindowManager.LayoutParams.FLAG_FULLSCREEN
         )
-        installCrashLogger()
-        prefs = getSharedPreferences("redradar", MODE_PRIVATE)
-        sound = Sound(prefs.getBoolean("sound", true))
-
-        // если прошлый запуск упал — сначала показываем стек ошибки
-        val crash = readCrash()
-        if (crash != null) {
-            showCrashScreen(crash)
-            return
-        }
-        showMenu()
-    }
-
-    // ---------- перехват падений ----------
-    private fun installCrashLogger() {
-        val prev = Thread.getDefaultUncaughtExceptionHandler()
-        Thread.setDefaultUncaughtExceptionHandler { t, e ->
-            try {
-                val sw = java.io.StringWriter()
-                e.printStackTrace(java.io.PrintWriter(sw))
-                val time = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
-                val text = "=== ПАДЕНИЕ $time (поток: ${t.name}) ===\n$sw\n\n"
-                try {
-                    openFileOutput("crash.txt", MODE_APPEND).use {
-                        it.write(text.toByteArray(Charsets.UTF_8))
-                    }
-                } catch (_: Throwable) { }
-                try {
-                    val dir = getExternalFilesDir(null)
-                    if (dir != null) {
-                        val f = File(dir, "crash.txt")
-                        f.appendText(text)
-                    }
-                } catch (_: Throwable) { }
-            } catch (_: Throwable) { }
-            prev?.uncaughtException(t, e)
+        try {
+            prefs = getSharedPreferences("redradar", MODE_PRIVATE)
+            sound = Sound(prefs.getBoolean("sound", true))
+            showMenu()
+        } catch (t: Throwable) {
+            // сбой в главном пути запуска: показываем стек сразу, не выбрасывая
+            App.instance.writeThrowable(t, "onCreate")
+            showCrashScreen(readCrash() ?: "(нет текста ошибки)")
         }
     }
 
-    private fun readCrash(): String? {
-        return try {
-            val f = File(getExternalFilesDir(null), "crash.txt")
-            if (f.exists() && f.length() > 0) f.readText() else {
-                val f2 = File(filesDir, "crash.txt")
-                if (f2.exists() && f2.length() > 0) f2.readText() else null
-            }
-        } catch (_: Throwable) { null }
+    // ---------- чтение/очистка файла падений ----------
+    private fun crashFile(): File = try {
+        val ext = getExternalFilesDir(null)
+        val fe = if (ext != null) File(ext, "crash.txt") else null
+        when {
+            fe != null && fe.exists() && fe.length() > 0 -> fe
+            else -> File(filesDir, "crash.txt")
+        }
+    } catch (_: Throwable) {
+        File(filesDir, "crash.txt")
     }
+
+    private fun readCrash(): String? = try {
+        val f = crashFile()
+        if (f.exists() && f.length() > 0) f.readText() else null
+    } catch (_: Throwable) { null }
 
     private fun clearCrash() {
         try { File(getExternalFilesDir(null), "crash.txt").delete() } catch (_: Throwable) { }
@@ -133,11 +108,16 @@ class MainActivity : Activity() {
 
     private fun startGame(difficulty: String) {
         menuView = null
-        val gv = GameView(this, sound ?: Sound(true).also { sound = it }, difficulty) {
-            runOnUiThread { showMenu() }
+        try {
+            val gv = GameView(this, sound ?: Sound(true).also { sound = it }, difficulty) {
+                runOnUiThread { showMenu() }
+            }
+            gameView = gv
+            setContentView(gv)
+        } catch (t: Throwable) {
+            App.instance.writeThrowable(t, "startGame")
+            showCrashScreen(readCrash() ?: "(нет текста ошибки)")
         }
-        gameView = gv
-        setContentView(gv)
     }
 
     override fun onPause() {
