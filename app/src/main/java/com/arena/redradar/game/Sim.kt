@@ -106,6 +106,7 @@ class GameUnit(owner: Int, val def: UnitDef, x: Float, y: Float) : Entity(owner,
     var gatherT = 0f
     var buildSiteId = -1
     var face = 0f
+    var turretA = 0f            // угол башни (танк) — при стрельбе смотрит на цель
 }
 
 class Building(owner: Int, val def: BuildingDef, val tx: Int, val ty: Int, constructed: Boolean) :
@@ -588,6 +589,7 @@ class Sim(val seed: Long, val difficulty: String) {
         } else {
             u.path = null
             u.face = atan2(t.y - u.y, t.x - u.x)
+            u.turretA = u.face
             if (u.atkT <= 0f) {
                 u.atkT = u.def.atkCd
                 if (u.def.projectile) {
@@ -907,6 +909,7 @@ object Units {
         u.maxHp = def.hp
         u.hp = def.hp
         u.face = if (owner == 0) Math.PI.toFloat() else 0f
+        u.turretA = u.face
         return u
     }
 }

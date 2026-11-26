@@ -80,6 +80,8 @@ class GameView(
         holder.addCallback(this)
         isFocusable = true
         isFocusableInTouchMode = true
+        paint.isFilterBitmap = true
+        Sprites.load(context)
 
         sim.onEvent = { type, _, _ ->
             when (type) {
@@ -202,6 +204,12 @@ class GameView(
         val t = sim.map.terrain[i]
         val x = tx * TILE.toFloat(); val y = ty * TILE.toFloat()
         val hv = (tx * 73856093 xor ty * 19349663) and 0x7FFFFFFF
+        val bmp = Sprites.tile(t, (hv % 3).toInt())
+        if (bmp != null) {
+            c.drawBitmap(bmp, null, RectF(x, y, x + TILE, y + TILE), paint)
+            return
+        }
+        // запасной вариант: цветные квадраты (если ассеты не загрузились)
         val r1 = (hv % 1000) / 1000f
         val r2 = ((hv / 7) % 1000) / 1000f
 
@@ -212,31 +220,6 @@ class GameView(
             else -> Color.rgb(52 + (r1 * 12).toInt(), 86 + (r1 * 18).toInt(), 40 + (r2 * 10).toInt())
         }
         c.drawRect(x, y, x + TILE, y + TILE, paint)
-
-        if (t == Terrain.WATER) {
-            paint.color = Color.argb(90, 150, 200, 235)
-            c.drawRect(x + 4 + r1 * 8, y + 6 + r2 * 18, x + 14 + r1 * 8, y + 8 + r2 * 18, paint)
-        } else if (t == Terrain.DIRT) {
-            paint.color = Color.argb(120, 60, 48, 30)
-            if (r1 < 0.5f) c.drawRect(x + 6 + r2 * 16, y + 8 + r1 * 16, x + 9 + r2 * 16, y + 10 + r1 * 16, paint)
-        } else if (t == Terrain.ORE) {
-            paint.color = Color.argb(110, 25, 35, 22)
-            c.drawCircle(x + 16, y + 24, 12f, paint)
-            paint.color = Color.rgb(125, 127, 132)
-            c.drawRect(x + 6, y + 12, x + 26, y + 26, paint)
-            paint.color = Color.rgb(154, 156, 162)
-            c.drawRect(x + 10, y + 14, x + 22, y + 20, paint)
-            paint.color = Color.rgb(242, 197, 61)
-            val n = 4 + (r1 * 3).toInt()
-            for (k in 0 until n) {
-                val gx = x + 8 + ((hv shr (k * 3)) % 16)
-                val gy = y + 14 + ((hv shr (k * 3 + 2)) % 10)
-                c.drawRect(gx.toFloat(), gy.toFloat(), gx + 2.5f, gy + 2.5f, paint)
-            }
-        } else if (r1 < 0.4f) {
-            paint.color = Color.argb(110, 120, 160, 90)
-            c.drawRect(x + 8 + r2 * 16, y + 8 + r1 * 16, x + 9 + r2 * 16, y + 11 + r1 * 16, paint)
-        }
     }
 
     private fun playerColor(pid: Int, dark: Boolean): Int =
@@ -259,16 +242,27 @@ class GameView(
                 canvas.drawCircle(u.x, u.y, r + 4f, paint)
                 paint.style = Paint.Style.FILL
             }
+
+            val sz = r * 2.7f
             if (u.def.key == "tank") {
-                paint.color = Color.argb(170, 40, 40, 44)
-                canvas.drawRect(u.x - r, u.y - r * 0.9f, u.x + r, u.y + r * 0.9f, paint)
+                val hull = Sprites.rotated("tank_" + if (u.owner == 0) "red" else "blue", u.face)
+                val tur = Sprites.rotated("tank_turret_" + if (u.owner == 0) "red" else "blue", u.turretA)
+                if (hull != null && tur != null) {
+                    val rf = RectF(u.x - sz, u.y - sz, u.x + sz, u.y + sz)
+                    canvas.drawBitmap(hull, null, rf, paint)
+                    canvas.drawBitmap(tur, null, rf, paint)
+                } else {
+                    drawUnitFallback(canvas, u, r)
+                }
+            } else {
+                val bmp = Sprites.rotated(u.def.key + "_" + if (u.owner == 0) "red" else "blue", u.face)
+                if (bmp != null) {
+                    canvas.drawBitmap(bmp, null, RectF(u.x - sz, u.y - sz, u.x + sz, u.y + sz), paint)
+                } else {
+                    drawUnitFallback(canvas, u, r)
+                }
             }
-            paint.color = playerColor(u.owner, false)
-            canvas.drawCircle(u.x, u.y, r, paint)
-            val fx = u.x + cos(u.face) * r * 0.6f
-            val fy = u.y + sin(u.face) * r * 0.6f
-            paint.color = playerColor(u.owner, true)
-            canvas.drawCircle(fx, fy, r * 0.45f, paint)
+
             if (u.carry > 0.5f) {
                 paint.color = Color.rgb(242, 197, 61)
                 canvas.drawCircle(u.x, u.y - r - 5f, 3.5f, paint)
@@ -281,6 +275,20 @@ class GameView(
                 drawBar(canvas, u.x - 11f, u.y - r - 10f, 22f, 3.5f, u.hp / u.maxHp)
             }
         }
+    }
+
+    /** Запасная отрисовка юнита кругами (без спрайтов). */
+    private fun drawUnitFallback(canvas: Canvas, u: GameUnit, r: Float) {
+        if (u.def.key == "tank") {
+            paint.color = Color.argb(170, 40, 40, 44)
+            canvas.drawRect(u.x - r, u.y - r * 0.9f, u.x + r, u.y + r * 0.9f, paint)
+        }
+        paint.color = playerColor(u.owner, false)
+        canvas.drawCircle(u.x, u.y, r, paint)
+        val fx = u.x + cos(u.face) * r * 0.6f
+        val fy = u.y + sin(u.face) * r * 0.6f
+        paint.color = playerColor(u.owner, true)
+        canvas.drawCircle(fx, fy, r * 0.45f, paint)
     }
 
     private fun drawBuildings(canvas: Canvas) {
@@ -304,33 +312,36 @@ class GameView(
                 continue
             }
 
-            paint.color = playerColor(b.owner, true)
-            canvas.drawRect(x0 + 3, y0 + s * 0.3f, x0 + s - 3, y0 + s - 3, paint)
-            paint.color = playerColor(b.owner, false)
-            canvas.drawRect(x0 + 6, y0 + 6, x0 + s - 6, y0 + s * 0.34f, paint)
+            val drawn = drawBuildingSprite(canvas, b, x0, y0, s)
+            if (!drawn) {
+                paint.color = playerColor(b.owner, true)
+                canvas.drawRect(x0 + 3, y0 + s * 0.3f, x0 + s - 3, y0 + s - 3, paint)
+                paint.color = playerColor(b.owner, false)
+                canvas.drawRect(x0 + 6, y0 + 6, x0 + s - 6, y0 + s * 0.34f, paint)
 
-            textPaint.color = Color.argb(230, 255, 255, 255)
-            textPaint.textSize = s * 0.22f
-            textPaint.textAlign = Paint.Align.CENTER
-            val label = when (b.def.key) {
-                "base" -> "ШТ"
-                "power" -> "ЭН"
-                "barracks" -> "КАЗ"
-                "factory" -> "ЗАВ"
-                "turret" -> "ТУР"
-                else -> "?"
-            }
-            canvas.drawText(label, b.x, y0 + s * 0.28f, textPaint)
+                textPaint.color = Color.argb(230, 255, 255, 255)
+                textPaint.textSize = s * 0.22f
+                textPaint.textAlign = Paint.Align.CENTER
+                val label = when (b.def.key) {
+                    "base" -> "ШТ"
+                    "power" -> "ЭН"
+                    "barracks" -> "КАЗ"
+                    "factory" -> "ЗАВ"
+                    "turret" -> "ТУР"
+                    else -> "?"
+                }
+                canvas.drawText(label, b.x, y0 + s * 0.28f, textPaint)
 
-            if (b.def.key == "turret") {
-                paint.style = Paint.Style.FILL
-                paint.color = Color.rgb(120, 126, 134)
-                canvas.drawCircle(b.x, b.y, s * 0.3f, paint)
-                paint.color = Color.rgb(61, 66, 73)
-                canvas.save()
-                canvas.rotate(b.barrelA * 180f / Math.PI.toFloat(), b.x, b.y)
-                canvas.drawRect(b.x, b.y - 3.5f, b.x + s * 0.5f, b.y + 3.5f, paint)
-                canvas.restore()
+                if (b.def.key == "turret") {
+                    paint.style = Paint.Style.FILL
+                    paint.color = Color.rgb(120, 126, 134)
+                    canvas.drawCircle(b.x, b.y, s * 0.3f, paint)
+                    paint.color = Color.rgb(61, 66, 73)
+                    canvas.save()
+                    canvas.rotate(b.barrelA * 180f / Math.PI.toFloat(), b.x, b.y)
+                    canvas.drawRect(b.x, b.y - 3.5f, b.x + s * 0.5f, b.y + 3.5f, paint)
+                    canvas.restore()
+                }
             }
 
             if (b.flashT > 0f) {
@@ -351,6 +362,25 @@ class GameView(
             }
         }
         paint.style = Paint.Style.FILL
+    }
+
+    /** Спрайтовая отрисовка достроенного здания; false — нет спрайта, рисовать фигурами. */
+    private fun drawBuildingSprite(canvas: Canvas, b: Building, x0: Float, y0: Float, s: Float): Boolean {
+        val facn = if (b.owner == 0) "red" else "blue"
+        if (b.def.key == "turret") {
+            val base = Sprites.turretBase(b.owner)
+            val top = Sprites.rotated("turret_top_$facn", b.barrelA)
+            if (base != null && top != null) {
+                val rf = RectF(x0, y0, x0 + s, y0 + s)
+                canvas.drawBitmap(base, null, rf, paint)
+                canvas.drawBitmap(top, null, rf, paint)
+                return true
+            }
+            return false
+        }
+        val bmp = Sprites.building(b.def.key, b.owner) ?: return false
+        canvas.drawBitmap(bmp, null, RectF(x0, y0, x0 + s, y0 + s), paint)
+        return true
     }
 
     private fun drawProjectiles(canvas: Canvas) {

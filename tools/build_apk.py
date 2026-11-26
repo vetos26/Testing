@@ -90,12 +90,24 @@ def main():
         ('AndroidManifest.xml', manifest_bin),
         ('classes.dex', dex),
     ]
+    # assets (спрайты и пр.) из app/src/main/assets -> assets/...
+    assets_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                              '..', 'app', 'src', 'main', 'assets')
+    if os.path.isdir(assets_dir):
+        for root, dirs, files in os.walk(assets_dir):
+            for f in sorted(files):
+                p = os.path.join(root, f)
+                name = 'assets/' + os.path.relpath(p, assets_dir).replace(os.sep, '/')
+                entries.append((name, open(p, 'rb').read()))
+
     mf, sf, rsa_sig = build_v1(entries)
 
     apk_path = sys.argv[1] if len(sys.argv) > 1 else 'RedRadar.apk'
     z = zipfile.ZipFile(apk_path, 'w', zipfile.ZIP_DEFLATED)
     z.writestr('AndroidManifest.xml', manifest_bin)
     z.writestr('classes.dex', dex)
+    for name, data in entries[2:]:
+        z.writestr(name, data)
     z.writestr('META-INF/MANIFEST.MF', mf)
     z.writestr('META-INF/CERT.SF', sf)
     z.writestr('META-INF/CERT.RSA', rsa_sig)
