@@ -20,18 +20,22 @@ object Sprites {
     const val ROT_STEP = 6f
 
     fun load(context: Context) {
-        ctx = context.applicationContext
-        // прогрев: декодируем всё заранее (31 файл, ~150 КБ)
-        val names = listOf(
-            "grass0", "grass1", "grass2", "dirt0", "dirt1", "water0", "water1", "ore0", "ore1",
-            "tank_red", "tank_turret_red", "miner_red", "rifle_red", "rocket_red",
-            "tank_blue", "tank_turret_blue", "miner_blue", "rifle_blue", "rocket_blue",
-            "base_red", "power_red", "barracks_red", "factory_red",
-            "turret_base_red", "turret_top_red",
-            "base_blue", "power_blue", "barracks_blue", "factory_blue",
-            "turret_base_blue", "turret_top_blue"
-        )
-        for (n in names) raw(n)
+        try {
+            ctx = context.applicationContext
+            // прогрев: декодируем всё заранее (31 файл, ~150 КБ)
+            val names = listOf(
+                "grass0", "grass1", "grass2", "dirt0", "dirt1", "water0", "water1", "ore0", "ore1",
+                "tank_red", "tank_turret_red", "miner_red", "rifle_red", "rocket_red",
+                "tank_blue", "tank_turret_blue", "miner_blue", "rifle_blue", "rocket_blue",
+                "base_red", "power_red", "barracks_red", "factory_red",
+                "turret_base_red", "turret_top_red",
+                "base_blue", "power_blue", "barracks_blue", "factory_blue",
+                "turret_base_blue", "turret_top_blue"
+            )
+            for (n in names) raw(n)
+        } catch (t: Throwable) {
+            failed = true // без спрайтов: GameView перейдёт на фигуры
+        }
     }
 
     private fun raw(name: String): Bitmap? {
