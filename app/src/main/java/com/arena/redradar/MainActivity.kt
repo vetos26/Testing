@@ -93,6 +93,12 @@ class MainActivity : Activity() {
 
     // ---------- обычная работа ----------
     private fun showMenu() {
+        // если игровая петля записала ошибку — сначала показываем её текст
+        val c = readCrash()
+        if (c != null) {
+            showCrashScreen(c)
+            return
+        }
         gameView?.let { g ->
             g.onActivityPause()
         }
