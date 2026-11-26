@@ -23,7 +23,7 @@ class AI(private val sim: Sim, private val pid: Int, diffKey: String) {
         if (tacticsT >= 0.9f) { tacticsT = 0f; tactics() }
     }
 
-    private fun myUnits(): List<Unit> = sim.units.filter { !it.dead && it.owner == pid }
+    private fun myUnits(): List<GameUnit> = sim.units.filter { !it.dead && it.owner == pid }
     private fun myBuildings(): List<Building> = sim.buildings.filter { !it.dead && it.owner == pid }
 
     private fun think() {

@@ -84,7 +84,7 @@ open class Entity(val owner: Int, var x: Float, var y: Float) {
     var lastDmgT = -99f
 }
 
-class Unit(owner: Int, val def: UnitDef, x: Float, y: Float) : Entity(owner, x, y) {
+class GameUnit(owner: Int, val def: UnitDef, x: Float, y: Float) : Entity(owner, x, y) {
     var order = "idle"          // idle|stop|move|attackmove|attack|harvest|build
     var tx = x; var ty = y
     var target: Entity? = null
@@ -149,13 +149,13 @@ class Proj(val owner: Int, var x: Float, var y: Float, val target: Entity, val d
 class Sim(val seed: Long, val difficulty: String) {
 
     val map = GameMap(seed)
-    val units = ArrayList<Unit>()
+    val units = ArrayList<GameUnit>()
     val buildings = ArrayList<Building>()
     val projectiles = ArrayList<Proj>()
     val credits = floatArrayOf(Defs.START_CREDITS, Defs.START_CREDITS)
     var time = 0f
     var over: String? = null
-    var onEvent: ((String, Float, Float) -> Unit)? = null
+    var onEvent: ((String, Float, Float) -> kotlin.Unit)? = null
     private var nextId = 1
     private var winT = 0f
     private var alarmT = -99f
@@ -188,7 +188,7 @@ class Sim(val seed: Long, val difficulty: String) {
     }
 
     // ---------- утилиты ----------
-    fun spawn(u: Unit) {
+    fun spawn(u: GameUnit) {
         u.id = nextId++
         units.add(u)
     }
@@ -233,7 +233,7 @@ class Sim(val seed: Long, val difficulty: String) {
     fun canAfford(pid: Int, cost: Int) = credits[pid] >= cost
 
     // ---------- приказы ----------
-    fun issueMove(list: List<Unit>, x: Float, y: Float, attackMove: Boolean = false) {
+    fun issueMove(list: List<GameUnit>, x: Float, y: Float, attackMove: Boolean = false) {
         val offs = ringOffsets(list.size)
         val sorted = list.sortedBy { dist2(it.x, it.y, x, y) }
         sorted.forEachIndexed { i, u ->
@@ -246,7 +246,7 @@ class Sim(val seed: Long, val difficulty: String) {
         }
     }
 
-    fun issueAttack(list: List<Unit>, t: Entity) {
+    fun issueAttack(list: List<GameUnit>, t: Entity) {
         for (u in list) {
             u.order = "attack"
             u.target = t
@@ -256,7 +256,7 @@ class Sim(val seed: Long, val difficulty: String) {
         }
     }
 
-    fun issueHarvest(u: Unit, ox: Int, oy: Int) {
+    fun issueHarvest(u: GameUnit, ox: Int, oy: Int) {
         if (!u.def.isMiner) return
         u.order = "harvest"
         u.hPhase = 0
@@ -265,7 +265,7 @@ class Sim(val seed: Long, val difficulty: String) {
         u.resume = null
     }
 
-    fun issueBuild(u: Unit, site: Building) {
+    fun issueBuild(u: GameUnit, site: Building) {
         if (!u.def.isMiner) return
         if (u.order == "harvest") {
             u.resume = "harvest"
@@ -276,7 +276,7 @@ class Sim(val seed: Long, val difficulty: String) {
         u.path = null
     }
 
-    fun stopUnits(list: List<Unit>) {
+    fun stopUnits(list: List<GameUnit>) {
         for (u in list) {
             u.order = "stop"
             u.path = null; u.resume = null
@@ -403,7 +403,7 @@ class Sim(val seed: Long, val difficulty: String) {
     private fun retaliate(ent: Entity, src: Entity?) {
         val s = src ?: return
         if (s.dead || s.owner == ent.owner) return
-        if (ent !is Unit || ent.def.isMiner) return
+        if (ent !is GameUnit || ent.def.isMiner) return
         val o = ent.order
         val rettable = o == "idle" || o == "stop" || o == "harvest" || o == "attackmove"
         if (!rettable) return
@@ -480,7 +480,7 @@ class Sim(val seed: Long, val difficulty: String) {
     }
 
     // ---------- юниты ----------
-    private fun updateUnit(u: Unit, dt: Float) {
+    private fun updateUnit(u: GameUnit, dt: Float) {
         u.atkT = max(0f, u.atkT - dt)
         when (u.order) {
             "idle" -> uIdle(u, dt)
@@ -505,7 +505,7 @@ class Sim(val seed: Long, val difficulty: String) {
         }
     }
 
-    private fun uIdle(u: Unit, dt: Float) {
+    private fun uIdle(u: GameUnit, dt: Float) {
         if (u.def.isMiner) return
         u.scanT -= dt
         if (u.scanT <= 0f) {
@@ -521,7 +521,7 @@ class Sim(val seed: Long, val difficulty: String) {
         }
     }
 
-    private fun uMove(u: Unit, dt: Float) {
+    private fun uMove(u: GameUnit, dt: Float) {
         if (u.path == null) {
             val p = findPath(map, (u.x / TILE).toInt(), (u.y / TILE).toInt(), (u.tx / TILE).toInt(), (u.ty / TILE).toInt())
             if (p == null || p.isEmpty()) { u.order = "idle"; u.path = null; return }
@@ -530,7 +530,7 @@ class Sim(val seed: Long, val difficulty: String) {
         if (followPath(u, dt)) u.order = "idle"
     }
 
-    private fun uAttackMove(u: Unit, dt: Float) {
+    private fun uAttackMove(u: GameUnit, dt: Float) {
         u.scanT -= dt
         if (u.scanT <= 0f) {
             u.scanT = 0.25f
@@ -548,7 +548,7 @@ class Sim(val seed: Long, val difficulty: String) {
         uMove(u, dt)
     }
 
-    private fun uAttack(u: Unit, dt: Float) {
+    private fun uAttack(u: GameUnit, dt: Float) {
         var t = u.target
         if (t == null || t.dead) {
             val bt = u.targetBuilding
@@ -599,7 +599,7 @@ class Sim(val seed: Long, val difficulty: String) {
         }
     }
 
-    private fun uHarvest(u: Unit, dt: Float) {
+    private fun uHarvest(u: GameUnit, dt: Float) {
         if (!map.isOre(u.resTx, u.resTy)) {
             val alt = map.nearestOre(u.x, u.y, 14)
             if (alt != null) {
@@ -619,7 +619,7 @@ class Sim(val seed: Long, val difficulty: String) {
         when (u.hPhase) {
             0 -> {
                 if (u.path == null) {
-                    val stand = standTileAround(u.resTx, u.resTy, u)
+                    val stand = standTileAround(u.resTx, u.resTy, 1, u)
                     if (stand != null) {
                         val p = findPath(map, (u.x / TILE).toInt(), (u.y / TILE).toInt(), stand.first, stand.second)
                         if (p == null) { u.order = "idle"; return }
@@ -661,7 +661,7 @@ class Sim(val seed: Long, val difficulty: String) {
         }
     }
 
-    private fun deposit(u: Unit, drop: Building) {
+    private fun deposit(u: GameUnit, drop: Building) {
         if (u.carry > 0f) {
             val mult = if (u.owner == 1) Difficulties.of(difficulty).income else 1f
             credits[u.owner] += u.carry * mult
@@ -671,7 +671,7 @@ class Sim(val seed: Long, val difficulty: String) {
         u.path = null
     }
 
-    private fun uBuild(u: Unit, dt: Float) {
+    private fun uBuild(u: GameUnit, dt: Float) {
         val site = entityById(u.buildSiteId) as? Building
         if (site == null || site.dead || site.constructed) {
             // вернуться к прежнему занятию
@@ -687,7 +687,7 @@ class Sim(val seed: Long, val difficulty: String) {
         val dEdge = edgeDist(site, u.x, u.y)
         if (dEdge > TILE * 0.9f) {
             if (u.path == null) {
-                val stand = standTileAround(site.tx, site.ty, site, true)
+                val stand = standTileAround(site.tx, site.ty, site.size, u)
                 if (stand != null) {
                     val p = findPath(map, (u.x / TILE).toInt(), (u.y / TILE).toInt(), stand.first, stand.second)
                     if (p == null) { u.order = "idle"; return }
@@ -707,7 +707,7 @@ class Sim(val seed: Long, val difficulty: String) {
         }
     }
 
-    private fun resumeOrder(u: Unit) {
+    private fun resumeOrder(u: GameUnit) {
         val r = u.resume
         u.resume = null
         when (r) {
@@ -722,7 +722,7 @@ class Sim(val seed: Long, val difficulty: String) {
         }
     }
 
-    private fun acquireTarget(u: Unit): Entity? {
+    private fun acquireTarget(u: GameUnit): Entity? {
         val range = u.def.sight * TILE
         var bestU: Entity? = null; var bdU = Float.MAX_VALUE
         var bestB: Entity? = null; var bdB = Float.MAX_VALUE
@@ -740,9 +740,9 @@ class Sim(val seed: Long, val difficulty: String) {
         return bestB
     }
 
-    private fun enemyUnitNear(b: Building, ownerOfAttacker: Int, range: Float): Unit? {
+    private fun enemyUnitNear(b: Building, ownerOfAttacker: Int, range: Float): GameUnit? {
         val enemy = if (ownerOfAttacker == 0) 1 else 0
-        var best: Unit? = null
+        var best: GameUnit? = null
         var bd = Float.MAX_VALUE
         for (u in units) {
             if (u.dead || u.owner != enemy) continue
@@ -753,14 +753,14 @@ class Sim(val seed: Long, val difficulty: String) {
     }
 
     private fun edgeDist(e: Entity, x: Float, y: Float): Float {
-        if (e is Unit) return max(0f, kotlin.math.hypot(x - e.x, y - e.y) - e.def.radius)
+        if (e is GameUnit) return max(0f, kotlin.math.hypot(x - e.x, y - e.y) - e.def.radius)
         val b = e as Building
         val dx = max(0f, kotlin.math.abs(x - b.x) - b.edgeRadius)
         val dy = max(0f, kotlin.math.abs(y - b.y) - b.edgeRadius)
         return sqrt(dx * dx + dy * dy)
     }
 
-    private fun nudge(u: Unit, tx: Float, ty: Float, dt: Float) {
+    private fun nudge(u: GameUnit, tx: Float, ty: Float, dt: Float) {
         val dx = tx - u.x; val dy = ty - u.y
         val d = kotlin.math.hypot(dx, dy).coerceAtLeast(0.001f)
         val step = u.def.speed * dt
@@ -768,21 +768,20 @@ class Sim(val seed: Long, val difficulty: String) {
         u.face = atan2(dy, dx)
     }
 
-    private fun standTileAround(tx: Int, ty: Int, u: Unit, building: Boolean = false, size: Int = 1): Pair<Int, Int>? {
-        val s = if (building) (entityById(u.buildSiteId) as? Building)?.size ?: 1 else 1
+    private fun standTileAround(tx: Int, ty: Int, size: Int, u: GameUnit): Pair<Int, Int>? {
         var best: Pair<Int, Int>? = null
         var bd = Float.MAX_VALUE
-        for (y in ty - 1..ty + s) for (x in tx - 1..tx + s) {
-            val onEdge = (x == tx - 1 || x == tx + s) || (y == ty - 1 || y == ty + s)
+        for (y in ty - 1..ty + size) for (x in tx - 1..tx + size) {
+            val onEdge = (x == tx - 1 || x == tx + size) || (y == ty - 1 || y == ty + size)
             if (!onEdge) continue
             if (!map.isPassable(x, y)) continue
-            val d = dist2(u.x, u.y, x * TILE + 16f, y * TILE + 16f)
+            val d = Sim.dist2(u.x, u.y, x * TILE + 16f, y * TILE + 16f)
             if (d < bd) { bd = d; best = Pair(x, y) }
         }
         return best
     }
 
-    private fun followPath(u: Unit, dt: Float): Boolean {
+    private fun followPath(u: GameUnit, dt: Float): Boolean {
         val pth = u.path ?: return true
         if (u.pathI >= pth.size) return true
         val wp = pth[u.pathI]
@@ -800,7 +799,7 @@ class Sim(val seed: Long, val difficulty: String) {
         return false
     }
 
-    private fun tryMove(u: Unit, dx: Float, dy: Float) {
+    private fun tryMove(u: GameUnit, dx: Float, dy: Float) {
         val nx = u.x + dx; val ny = u.y + dy
         if (map.isPassable((nx / TILE).toInt(), (u.y / TILE).toInt())) u.x = nx
         if (map.isPassable((u.x / TILE).toInt(), (ny / TILE).toInt())) u.y = ny
@@ -903,8 +902,8 @@ class Sim(val seed: Long, val difficulty: String) {
 
 // адаптер юнита: конструктор с дефолтными полями
 object Units {
-    fun unit(owner: Int, def: UnitDef, x: Float, y: Float): Unit {
-        val u = Unit(owner, def, x, y)
+    fun unit(owner: Int, def: UnitDef, x: Float, y: Float): GameUnit {
+        val u = GameUnit(owner, def, x, y)
         u.maxHp = def.hp
         u.hp = def.hp
         u.face = if (owner == 0) Math.PI.toFloat() else 0f

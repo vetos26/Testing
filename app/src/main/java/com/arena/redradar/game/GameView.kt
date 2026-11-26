@@ -28,7 +28,7 @@ class GameView(
     context: Context,
     private val snd: Sound,
     difficulty: String,
-    private val onExit: () -> Unit
+    private val onExit: () -> kotlin.Unit
 ) : SurfaceView(context), SurfaceHolder.Callback, Runnable {
 
     private val sim = Sim(System.nanoTime(), difficulty)
@@ -141,7 +141,7 @@ class GameView(
             }
             val canvas = try { holder.lockCanvas() } catch (e: Exception) { null }
             if (canvas != null) {
-                try { draw(canvas) } finally {
+                try { drawFrame(canvas) } finally {
                     try { holder.unlockCanvasAndPost(canvas) } catch (e: Exception) { }
                 }
             }
@@ -149,7 +149,7 @@ class GameView(
     }
 
     // ---------- рендер ----------
-    private fun draw(canvas: Canvas) {
+    private fun drawFrame(canvas: Canvas) {
         val w = width.toFloat()
         val h = height.toFloat()
 
@@ -572,7 +572,7 @@ class GameView(
         val first = sel[0]
         val title: String = if (sel.size == 1) {
             when (first) {
-                is Unit -> first.def.name
+                is GameUnit -> first.def.name
                 is Building -> first.def.name
                 else -> "?"
             }
@@ -584,7 +584,7 @@ class GameView(
             textPaint.textSize = 10f
             textPaint.color = Color.rgb(170, 176, 185)
             val sub: String = when (first) {
-                is Unit -> if (first.def.isMiner && first.carry > 0f)
+                is GameUnit -> if (first.def.isMiner && first.carry > 0f)
                     "руда: ${first.carry.roundToInt()}" else "урон ${first.def.dmg.roundToInt()}"
                 is Building -> if (!first.constructed) "стройка ${(first.progress * 100).roundToInt()}%"
                 else {
@@ -783,7 +783,7 @@ class GameView(
         }
 
         if (ent != null && ent.owner == 0) {
-            if (dbl && ent is Unit) {
+            if (dbl && ent is GameUnit) {
                 val same = sim.units.filter {
                     !it.dead && it.owner == 0 && it.def === ent.def &&
                         it.x >= camX && it.x <= camX + width / zoom &&

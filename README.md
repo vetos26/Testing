@@ -49,19 +49,40 @@ Red Alert — товарные знаки их правообладателя, �
 
 ## Сборка
 
+### Готовый APK
+
+Собранный и подписанный APK лежит в репозитории: **`dist/RedRadar.apk`** (~870 КБ).
+Установка: скопировать на телефон, открыть (разрешить «неизвестные источники»).
+Требуется Android 7.0+ (minSdk 24). Подпись — самоподписанный сертификат сборки
+(v1-схема; targetSdk 28, поэтому v2 не требуется).
+
+### Обычная сборка (Android Studio)
+
 Требуется Android Studio (Hedgehog или новее) или Gradle 8.7 + JDK 17:
 
 ```bash
 # в Android Studio: File → Open → выбрать папку проекта → Run 'app'
 # либо из командной строки (нужен Android SDK):
-./gradlew assembleDebug   # wrapper-jar генерируется студией при первом открытии
+./gradlew assembleDebug
 ```
 
-APK появится в `app/build/outputs/apk/debug/app-debug.apk`.
-
-- minSdk 24 (Android 7.0), targetSdk 34
-- Ориентация: альбомная (menu нарисовано под неё)
+- minSdk 24 (Android 7.0), targetSdk 28
+- Ориентация: альбомная (меню и игра нарисованы под неё)
 - Внешних зависимостей нет — только `android.*` и Kotlin stdlib
+
+### Сборка без Android SDK (в песочнице)
+
+`tools/build_apk.sh` собирает APK вообще без Android SDK/Gradle — инструменты
+берутся из разрешённых источников: JDK из PyPI (`jdk4py`), kotlinc из npm
+(`kotlin-compiler`), `android.jar` (API 34) и `dx` из GitHub (blobs API).
+Манифест компилируется собственным энкодером AXML (`tools/build_axml.py`),
+APK собирается и подписывается на чистом Python (`tools/build_apk.py`,
+v1-подпись через `cryptography`). Итог проверяется androguard.
+
+```bash
+pip install jdk4py cryptography
+tools/build_apk.sh          # → dist/RedRadar.apk
+```
 
 ## Структура
 
