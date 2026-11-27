@@ -104,6 +104,9 @@ echo "== 7. манифест AXML + APK + v1-подпись =="
 python3 build_axml.py "$WORK/manifest.bin"
 python3 build_apk.py ../dist/RedRadar.apk
 
+echo "== 8. структурная проверка dex (суперклассы, финальность, invokedynamic) =="
+python3 check_structure.py ../dist/RedRadar.apk
+
 echo "== 8. проверка (androguard) =="
 python3 - <<'EOF'
 from androguard.core.apk import APK
