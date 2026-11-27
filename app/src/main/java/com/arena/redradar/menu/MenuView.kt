@@ -11,6 +11,7 @@ import android.graphics.SweepGradient
 import android.graphics.Typeface
 import android.os.SystemClock
 import android.view.View
+import com.arena.redradar.engine.Mod
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.random.Random
@@ -22,6 +23,7 @@ import kotlin.random.Random
  */
 class MenuView(
     context: Context,
+    private val mod: Mod,
     private val prefs: android.content.SharedPreferences,
     private val onStartGame: (String) -> Unit,
     private val onQuit: () -> Unit
@@ -155,16 +157,16 @@ class MenuView(
         textPaint.textAlign = Paint.Align.CENTER
         textPaint.color = Color.rgb(240, 200, 90)
         textPaint.textSize = inner.width() * 0.115f
-        canvas.drawText("КРАСНЫЙ", titleCx, titleY, textPaint)
+        canvas.drawText(mod.labels.titleTop, titleCx, titleY, textPaint)
         textPaint.textSize = inner.width() * 0.155f
         textPaint.color = Color.rgb(216, 48, 48)
-        canvas.drawText("РАДАР", titleCx, titleY + inner.width() * 0.15f, textPaint)
+        canvas.drawText(mod.labels.titleMain, titleCx, titleY + inner.width() * 0.15f, textPaint)
         textPaint.textSize = inner.width() * 0.038f
         textPaint.color = Color.rgb(190, 196, 204)
-        canvas.drawText("стратегия в реальном времени", titleCx, titleY + inner.width() * 0.21f, textPaint)
+        canvas.drawText(mod.labels.subtitle, titleCx, titleY + inner.width() * 0.21f, textPaint)
         textPaint.textSize = inner.width() * 0.03f
         textPaint.color = Color.rgb(140, 146, 154)
-        canvas.drawText("вдохновлено Red Alert 2", titleCx, titleY + inner.width() * 0.25f, textPaint)
+        canvas.drawText(mod.labels.inspired, titleCx, titleY + inner.width() * 0.25f, textPaint)
 
         // ---------- верхний правый блок «ВНИМАНИЕ» ----------
         if (state == State.MAIN) {
@@ -205,7 +207,7 @@ class MenuView(
             State.MAIN -> listOf("НОВАЯ ИГРА", "НАСТРОЙКИ", "АВТОРЫ", "ВЫХОД")
             State.NEWGAME -> listOf("ЛЕГКО", "НОРМАЛЬНО", "СЛОЖНО", "НАЗАД")
             State.SETTINGS -> listOf(
-                "СЛОЖНОСТЬ: " + Diff.label(prefs.getString("difficulty", "normal") ?: "normal"),
+                "СЛОЖНОСТЬ: " + mod.diffLabel(prefs.getString("difficulty", "normal") ?: "normal"),
                 "ЗВУК: " + (if (prefs.getBoolean("sound", true)) "ВКЛ" else "ВЫКЛ"),
                 "СБРОС", "НАЗАД"
             )
@@ -280,7 +282,7 @@ class MenuView(
         textPaint.textAlign = Paint.Align.CENTER
         textPaint.textSize = w * 0.022f
         textPaint.color = Color.rgb(200, 206, 214)
-        canvas.drawText("Версия 1.0", (bx0 + bx1) / 2f, h - 10f, textPaint)
+        canvas.drawText(mod.labels.version, (bx0 + bx1) / 2f, h - 10f, textPaint)
     }
 
     private fun drawMenuButton(canvas: Canvas, r: RectF, label: String, pressed: Boolean) {
@@ -385,10 +387,3 @@ class MenuView(
     }
 }
 
-private object Diff {
-    fun label(key: String) = when (key) {
-        "easy" -> "ЛЕГКО"
-        "hard" -> "СЛОЖНО"
-        else -> "НОРМАЛЬНО"
-    }
-}

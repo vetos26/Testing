@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
+import com.arena.redradar.engine.Terrain
 
 /**
  * Загрузчик рисованных спрайтов из assets/sprites.

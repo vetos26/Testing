@@ -1,4 +1,4 @@
-package com.arena.redradar.game
+package com.arena.redradar.engine
 
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -7,69 +7,6 @@ import kotlin.math.sqrt
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
-
-// ------------------------------------------------------------
-// Описания юнитов и зданий (весь баланс в одном месте)
-// ------------------------------------------------------------
-class UnitDef(
-    val key: String,
-    val name: String,
-    val cost: Int,
-    val buildTime: Float,
-    val hp: Float,
-    val speed: Float,
-    val dmg: Float,
-    val range: Float,
-    val atkCd: Float,
-    val sight: Float,
-    val radius: Float,
-    val isMiner: Boolean = false,
-    val projectile: Boolean = false
-)
-
-class BuildingDef(
-    val key: String,
-    val name: String,
-    val cost: Int,
-    val buildTime: Float,
-    val hp: Float,
-    val size: Int,
-    val powerUse: Int = 0,
-    val powerGive: Int = 0,
-    val trains: List<String> = emptyList(),
-    val dropoff: Boolean = false,
-    val dmg: Float = 0f,
-    val range: Float = 0f,
-    val atkCd: Float = 0f,
-    val projectile: Boolean = false
-)
-
-object Defs {
-    val miner = UnitDef("miner", "Шахтёр", 700, 10f, 80f, 70f, 4f, 14f, 1f, 5f, 10f, isMiner = true)
-    val rifle = UnitDef("rifle", "Стрелок", 120, 5f, 90f, 78f, 8f, 100f, 0.8f, 6f, 9f)
-    val rocket = UnitDef("rocket", "Ракетчик", 180, 7f, 70f, 76f, 22f, 165f, 1.5f, 6f, 9f, projectile = true)
-    val tank = UnitDef("tank", "Танк", 650, 15f, 260f, 92f, 30f, 140f, 1.6f, 7f, 13f, projectile = true)
-
-    val units = mapOf(
-        "miner" to miner, "rifle" to rifle, "rocket" to rocket, "tank" to tank
-    )
-    val infantry = listOf("rifle", "rocket")
-
-    val base = BuildingDef("base", "Штаб", 1500, 25f, 1000f, 3, powerUse = 5, trains = listOf("miner"), dropoff = true)
-    val power = BuildingDef("power", "Энергоблок", 300, 8f, 400f, 2, powerGive = 40)
-    val barracks = BuildingDef("barracks", "Казармы", 550, 14f, 600f, 3, powerUse = 10, trains = infantry)
-    val factory = BuildingDef("factory", "Военный завод", 1200, 20f, 800f, 3, powerUse = 20, trains = listOf("tank"))
-    val turret = BuildingDef("turret", "Турель", 650, 12f, 400f, 2, powerUse = 6, dmg = 25f, range = 190f, atkCd = 1.2f, projectile = true)
-
-    val buildings = mapOf(
-        "base" to base, "power" to power, "barracks" to barracks,
-        "factory" to factory, "turret" to turret
-    )
-    val buildMenu = listOf("power", "barracks", "factory", "turret", "base")
-
-    const val UNIT_CAP = 40
-    const val START_CREDITS = 3000f
-}
 
 // ------------------------------------------------------------
 // Сущности
@@ -147,13 +84,13 @@ class Proj(val owner: Int, var x: Float, var y: Float, val target: Entity, val d
 // ------------------------------------------------------------
 // Симуляция
 // ------------------------------------------------------------
-class Sim(val seed: Long, val difficulty: String) {
+class Sim(val mod: Mod, val seed: Long, val difficulty: String) {
 
-    val map = GameMap(seed)
+    val map = GameMap(mod, seed)
     val units = ArrayList<GameUnit>()
     val buildings = ArrayList<Building>()
     val projectiles = ArrayList<Proj>()
-    val credits = floatArrayOf(Defs.START_CREDITS, Defs.START_CREDITS)
+    val credits = floatArrayOf(mod.startCredits.toFloat(), mod.startCredits.toFloat())
     var time = 0f
     var over: String? = null
     var onEvent: ((String, Float, Float) -> kotlin.Unit)? = null
@@ -166,7 +103,7 @@ class Sim(val seed: Long, val difficulty: String) {
 
     init {
         for ((pid, s) in map.starts.withIndex()) {
-            val b = Building(pid, Defs.base, s.first, s.second, true)
+            val b = Building(pid, mod.building("base")!!, s.first, s.second, true)
             b.id = nextId++
             buildings.add(b)
             map.setBuilding(s.first, s.second, b.size, b.id)
@@ -178,13 +115,13 @@ class Sim(val seed: Long, val difficulty: String) {
                     if (n >= 3) break
                     val ux = s.first + 1 + dx; val uy = s.second + 1 + dy
                     if (!map.isPassable(ux, uy)) continue
-                    spawn(Units.unit(pid, Defs.miner, ux * TILE + 16f, uy * TILE + 16f))
+                    spawn(Units.unit(pid, mod.unit("miner")!!, ux * TILE + 16f, uy * TILE + 16f))
                     n++
                 }
                 if (n >= 3) break
             }
             // стартовые стрелки
-            spawn(Units.unit(pid, Defs.rifle, b.x, b.y + TILE * 2.5f))
+            spawn(Units.unit(pid, mod.unit("rifle")!!, b.x, b.y + TILE * 2.5f))
         }
     }
 
@@ -238,8 +175,8 @@ class Sim(val seed: Long, val difficulty: String) {
         val offs = ringOffsets(list.size)
         val sorted = list.sortedBy { dist2(it.x, it.y, x, y) }
         sorted.forEachIndexed { i, u ->
-            val ox = (x + offs[i].first).coerceIn(0f, WORLD_W - 1f)
-            val oy = (y + offs[i].second).coerceIn(0f, WORLD_H - 1f)
+            val ox = (x + offs[i].first).coerceIn(0f, (map.w * TILE) - 1f)
+            val oy = (y + offs[i].second).coerceIn(0f, (map.h * TILE) - 1f)
             u.order = if (attackMove) "attackmove" else "move"
             u.tx = ox; u.ty = oy
             u.path = null; u.repathT = 0f
@@ -292,7 +229,7 @@ class Sim(val seed: Long, val difficulty: String) {
     fun canPlaceAt(def: BuildingDef, tx: Int, ty: Int): Boolean = map.canPlace(tx, ty, def.size)
 
     fun placeBuilding(pid: Int, key: String, tx: Int, ty: Int): Building? {
-        val def = Defs.buildings[key] ?: return null
+        val def = mod.building(key) ?: return null
         if (!map.canPlace(tx, ty, def.size)) return null
         if (credits[pid] < def.cost) return null
         // в площадке не должны стоять юниты
@@ -330,10 +267,10 @@ class Sim(val seed: Long, val difficulty: String) {
 
     // ---------- производство ----------
     fun train(b: Building, key: String, silent: Boolean = false): Boolean {
-        val def = Defs.units[key] ?: return false
+        val def = mod.unit(key) ?: return false
         if (b.dead || !b.constructed || !b.def.trains.contains(key)) return false
         if (b.queue.size >= 5) return false
-        if (unitCount(b.owner) + b.queue.size >= Defs.UNIT_CAP) return false
+        if (unitCount(b.owner) + b.queue.size >= mod.unitCap) return false
         if (credits[b.owner] < def.cost) {
             if (b.owner == 0 && !silent) onEvent?.invoke("needcredits", b.x, b.y)
             return false
@@ -345,12 +282,12 @@ class Sim(val seed: Long, val difficulty: String) {
 
     fun cancelTrain(b: Building) {
         val q = b.queue.lastOrNull() ?: return
-        credits[b.owner] += Defs.units[q.key]?.cost ?: 0
+        credits[b.owner] += mod.unit(q.key)?.cost ?: 0
         b.queue.removeAt(b.queue.size - 1)
     }
 
     private fun spawnFrom(b: Building, key: String) {
-        val def = Defs.units[key] ?: return
+        val def = mod.unit(key) ?: return
         val spot = freeSpot(b)
         val u = Units.unit(b.owner, def, spot.first, spot.second)
         spawn(u)
@@ -665,7 +602,7 @@ class Sim(val seed: Long, val difficulty: String) {
 
     private fun deposit(u: GameUnit, drop: Building) {
         if (u.carry > 0f) {
-            val mult = if (u.owner == 1) Difficulties.of(difficulty).income else 1f
+            val mult = if (u.owner == 1) mod.diff(difficulty).income else 1f
             credits[u.owner] += u.carry * mult
         }
         u.carry = 0f
@@ -914,20 +851,3 @@ object Units {
     }
 }
 
-// ------------------------------------------------------------
-// Сложность
-// ------------------------------------------------------------
-object Difficulties {
-    class Config(
-        val key: String, val name: String, val income: Float,
-        val wave0: Int, val waveStep: Int, val waveCap: Int,
-        val miners: Int, val turrets: Int
-    )
-
-    val easy = Config("easy", "Легко", 0.8f, 6, 4, 14, 5, 0)
-    val normal = Config("normal", "Нормально", 1f, 5, 3, 18, 7, 1)
-    val hard = Config("hard", "Сложно", 1.25f, 5, 2, 22, 9, 2)
-    val all = listOf(easy, normal, hard)
-
-    fun of(key: String): Config = all.firstOrNull { it.key == key } ?: normal
-}

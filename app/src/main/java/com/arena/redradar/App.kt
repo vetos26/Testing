@@ -17,9 +17,18 @@ import java.util.Locale
  */
 class App : Application() {
 
+    lateinit var mod: com.arena.redradar.engine.Mod
+        private set
+
     override fun onCreate() {
         super.onCreate()
         instance = this
+        // мод: из assets/mod (JSON) либо встроенный сценарий «Красный радар»
+        mod = try {
+            com.arena.redradar.engine.ModJson.load(assets)
+        } catch (t: Throwable) {
+            com.arena.redradar.engine.Mod.ra2Defaults()
+        }
         val prev = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { t, e ->
             writeThrowable(e, "поток " + t.name)

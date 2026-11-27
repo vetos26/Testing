@@ -1,4 +1,4 @@
-package com.arena.redradar.game
+package com.arena.redradar.engine
 
 import kotlin.math.abs
 import kotlin.math.atan2
@@ -6,11 +6,7 @@ import kotlin.math.floor
 import kotlin.math.hypot
 import kotlin.random.Random
 
-const val TILE = 32
-const val MAP_W = 56
-const val MAP_H = 56
-const val WORLD_W = MAP_W * TILE
-const val WORLD_H = MAP_H * TILE
+/* Размер тайла (TILE) — в Mod.kt движка. */
 
 object Terrain {
     const val GRASS = 0
@@ -39,18 +35,18 @@ fun makeNoise(seed: Long): (Float, Float) -> Float {
     }
 }
 
-class GameMap(val seed: Long) {
-    val w = MAP_W
-    val h = MAP_H
-    val terrain = IntArray(MAP_W * MAP_H)
-    val ore = IntArray(MAP_W * MAP_H)
-    val bgrid = IntArray(MAP_W * MAP_H)
-    val starts = listOf(Pair(9, 45), Pair(46, 10))
+class GameMap(val mod: Mod, val seed: Long) {
+    val w = mod.mapW
+    val h = mod.mapH
+    val terrain = IntArray(mod.mapW * mod.mapH)
+    val ore = IntArray(mod.mapW * mod.mapH)
+    val bgrid = IntArray(mod.mapW * mod.mapH)
+    val starts = mod.mapGen.starts
     var version = 0L
 
-    fun idx(x: Int, y: Int) = y * MAP_W + x
+    fun idx(x: Int, y: Int) = y * w + x
 
-    fun inBounds(x: Int, y: Int) = x >= 0 && y >= 0 && x < MAP_W && y < MAP_H
+    fun inBounds(x: Int, y: Int) = x >= 0 && y >= 0 && x < w && y < h
 
     fun terrainPassable(x: Int, y: Int): Boolean {
         if (!inBounds(x, y)) return false
@@ -109,7 +105,7 @@ class GameMap(val seed: Long) {
 
     /** Свободна ли площадка size×size с углом (tx, ty). */
     fun canPlace(tx: Int, ty: Int, size: Int): Boolean {
-        if (tx < 1 || ty < 1 || tx + size >= MAP_W - 1 || ty + size >= MAP_H - 1) return false
+        if (tx < 1 || ty < 1 || tx + size >= w - 1 || ty + size >= h - 1) return false
         for (y in ty until ty + size) for (x in tx until tx + size) {
             val i = idx(x, y)
             if (bgrid[i] != 0) return false
@@ -150,20 +146,22 @@ class GameMap(val seed: Long) {
 
         val centers = starts.map { Pair(it.first + 1, it.second + 1) }
 
-        for (y in 0 until MAP_H) for (x in 0 until MAP_W) {
+        for (y in 0 until h) for (x in 0 until w) {
             val i = idx(x, y)
-            val border = x < 2 || y < 2 || x >= MAP_W - 2 || y >= MAP_H - 2
+            val bw = mod.mapGen.borderWater
+            val border = x < bw || y < bw || x >= w - bw || y >= h - bw
             when {
                 border -> terrain[i] = Terrain.WATER
-                nWater(x * 0.085f, y * 0.085f) > 0.64f && !nearBase(x, y, 13) -> terrain[i] = Terrain.WATER
-                nDirt(x * 0.11f, y * 0.11f) > 0.72f -> terrain[i] = Terrain.DIRT
+                nWater(x * mod.mapGen.waterFreq, y * mod.mapGen.waterFreq) > mod.mapGen.waterT && !nearBase(x, y, 13) -> terrain[i] = Terrain.WATER
+                nDirt(x * mod.mapGen.dirtFreq, y * mod.mapGen.dirtFreq) > mod.mapGen.dirtT -> terrain[i] = Terrain.DIRT
                 else -> terrain[i] = Terrain.GRASS
             }
         }
 
         // расчистка площадок баз
         for (c in centers) {
-            for (y in c.second - 4..c.second + 4) for (x in c.first - 4..c.first + 4) {
+            val r = mod.mapGen.baseClearR
+            for (y in c.second - r..c.second + r) for (x in c.first - r..c.first + r) {
                 if (!inBounds(x, y)) continue
                 val i = idx(x, y)
                 if (terrain[i] == Terrain.WATER || terrain[i] == Terrain.ORE) terrain[i] = Terrain.GRASS
@@ -172,7 +170,7 @@ class GameMap(val seed: Long) {
 
         // рудные жилы у баз (дугой к центру карты)
         for (c in centers) {
-            val ang = atan2((MAP_H / 2 - c.second).toFloat(), (MAP_W / 2 - c.first).toFloat())
+            val ang = atan2((h / 2 - c.second).toFloat(), (w / 2 - c.first).toFloat())
             for (k in 0..4) {
                 val a = ang + (k - 2) * 0.42f
                 val d = 6.5f + (k % 2) * 2.2f
@@ -186,10 +184,10 @@ class GameMap(val seed: Long) {
         var placed = 0
         val veins = ArrayList<Pair<Int, Int>>()
         var tries = 0
-        while (placed < 6 && tries < 300) {
+        while (placed < mod.mapGen.midVeins && tries < 300) {
             tries++
-            val cx = 6 + rnd.nextInt(MAP_W - 12)
-            val cy = 6 + rnd.nextInt(MAP_H - 12)
+            val cx = 6 + rnd.nextInt(w - 12)
+            val cy = 6 + rnd.nextInt(h - 12)
             if (nearBase(cx, cy, 14)) continue
             if (veins.any { hypot((it.first - cx).toFloat(), (it.second - cy).toFloat()) < 10f }) continue
             veins.add(Pair(cx, cy))
@@ -209,7 +207,8 @@ class GameMap(val seed: Long) {
             val y = Math.round(A.second + (B.second - A.second) * t)
             for (dy in -1..1) for (dx in -1..1) {
                 val px = x + dx; val py = y + dy
-                if (px < 2 || py < 2 || px >= MAP_W - 2 || py >= MAP_H - 2) continue
+                val bw = mod.mapGen.borderWater
+                if (px < bw || py < bw || px >= w - bw || py >= h - bw) continue
                 val i = idx(px, py)
                 if (terrain[i] == Terrain.WATER) terrain[i] = Terrain.DIRT
                 if (terrain[i] == Terrain.ORE) { terrain[i] = Terrain.DIRT; ore[i] = 0 }
@@ -219,12 +218,12 @@ class GameMap(val seed: Long) {
     }
 
     private fun placeVein(mx: Int, my: Int, rnd: Random) {
-        if (mx < 3 || my < 3 || mx >= MAP_W - 3 || my >= MAP_H - 3) return
+        if (mx < 3 || my < 3 || mx >= w - 3 || my >= h - 3) return
         val i = idx(mx, my)
         val t = terrain[i]
         if (t == Terrain.GRASS || t == Terrain.DIRT || t == Terrain.WATER) {
             terrain[i] = Terrain.ORE
-            ore[i] = 250 + rnd.nextInt(150)
+            ore[i] = mod.mapGen.oreBase + rnd.nextInt(mod.mapGen.oreVar)
             for (dy in -2..2) for (dx in -2..2) {
                 if (abs(dx) + abs(dy) > 2) continue
                 val jx = mx + dx; val jy = my + dy

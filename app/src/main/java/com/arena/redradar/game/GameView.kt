@@ -12,6 +12,7 @@ import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import com.arena.redradar.App
+import com.arena.redradar.engine.*
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.hypot
@@ -27,12 +28,13 @@ import kotlin.math.sin
  */
 class GameView(
     context: Context,
+    private val mod: Mod,
     private val snd: Sound,
     difficulty: String,
     private val onExit: () -> kotlin.Unit
 ) : SurfaceView(context), SurfaceHolder.Callback, Runnable {
 
-    private val sim = Sim(System.nanoTime(), difficulty)
+    private val sim = Sim(mod, System.nanoTime(), difficulty)
 
     private var thread: Thread? = null
     @Volatile private var running = false
@@ -171,7 +173,7 @@ class GameView(
         canvas.scale(zoom, zoom)
 
         val tb = terrBitmap
-        if (tb != null) canvas.drawBitmap(tb, null, Rect(0, 0, WORLD_W, WORLD_H), paint)
+        if (tb != null) canvas.drawBitmap(tb, null, Rect(0, 0, mod.worldW, mod.worldH), paint)
 
         drawBuildings(canvas)
         drawUnits(canvas)
@@ -197,13 +199,13 @@ class GameView(
         val tb = terrBitmap
         if (tb != null && terrVersion == sim.map.version) return
         if (tb == null) {
-            val b = Bitmap.createBitmap(WORLD_W, WORLD_H, Bitmap.Config.ARGB_8888)
+            val b = Bitmap.createBitmap(mod.worldW, mod.worldH, Bitmap.Config.ARGB_8888)
             b.eraseColor(Color.rgb(7, 9, 12))
             terrBitmap = b
         }
         val bb = terrBitmap!!
         val c = Canvas(bb)
-        for (y in 0 until MAP_H) for (x in 0 until MAP_W) drawTile(c, x, y)
+        for (y in 0 until mod.mapH) for (x in 0 until mod.mapW) drawTile(c, x, y)
         terrVersion = sim.map.version
     }
 
@@ -230,12 +232,7 @@ class GameView(
         c.drawRect(x, y, x + TILE, y + TILE, paint)
     }
 
-    private fun playerColor(pid: Int, dark: Boolean): Int =
-        if (pid == 0) {
-            if (dark) Color.rgb(140, 32, 32) else Color.rgb(206, 62, 62)
-        } else {
-            if (dark) Color.rgb(34, 62, 130) else Color.rgb(74, 120, 216)
-        }
+    private fun playerColor(pid: Int, dark: Boolean): Int = mod.factionColor(pid, dark)
 
     private fun drawUnits(canvas: Canvas) {
         for (u in sim.units) {
@@ -253,8 +250,9 @@ class GameView(
 
             val sz = r * 2.7f
             if (u.def.key == "tank") {
-                val hull = Sprites.rotated("tank_" + if (u.owner == 0) "red" else "blue", u.face)
-                val tur = Sprites.rotated("tank_turret_" + if (u.owner == 0) "red" else "blue", u.turretA)
+                val fs = mod.factionSprite(u.owner)
+                val hull = Sprites.rotated(u.def.spriteBase + "_" + fs, u.face)
+                val tur = Sprites.rotated(u.def.spriteBase + "_turret_" + fs, u.turretA)
                 if (hull != null && tur != null) {
                     val rf = RectF(u.x - sz, u.y - sz, u.x + sz, u.y + sz)
                     canvas.drawBitmap(hull, null, rf, paint)
@@ -263,7 +261,7 @@ class GameView(
                     drawUnitFallback(canvas, u, r)
                 }
             } else {
-                val bmp = Sprites.rotated(u.def.key + "_" + if (u.owner == 0) "red" else "blue", u.face)
+                val bmp = Sprites.rotated(u.def.spriteBase + "_" + mod.factionSprite(u.owner), u.face)
                 if (bmp != null) {
                     canvas.drawBitmap(bmp, null, RectF(u.x - sz, u.y - sz, u.x + sz, u.y + sz), paint)
                 } else {
@@ -330,14 +328,7 @@ class GameView(
                 textPaint.color = Color.argb(230, 255, 255, 255)
                 textPaint.textSize = s * 0.22f
                 textPaint.textAlign = Paint.Align.CENTER
-                val label = when (b.def.key) {
-                    "base" -> "ШТ"
-                    "power" -> "ЭН"
-                    "barracks" -> "КАЗ"
-                    "factory" -> "ЗАВ"
-                    "turret" -> "ТУР"
-                    else -> "?"
-                }
+                val label = mod.labels.buildingAbbr[b.def.key] ?: "?"
                 canvas.drawText(label, b.x, y0 + s * 0.28f, textPaint)
 
                 if (b.def.key == "turret") {
@@ -374,7 +365,7 @@ class GameView(
 
     /** Спрайтовая отрисовка достроенного здания; false — нет спрайта, рисовать фигурами. */
     private fun drawBuildingSprite(canvas: Canvas, b: Building, x0: Float, y0: Float, s: Float): Boolean {
-        val facn = if (b.owner == 0) "red" else "blue"
+        val facn = mod.factionSprite(b.owner)
         if (b.def.key == "turret") {
             val base = Sprites.turretBase(b.owner)
             val top = Sprites.rotated("turret_top_$facn", b.barrelA)
@@ -404,7 +395,7 @@ class GameView(
     private fun drawWorldUi(canvas: Canvas) {
         val pk = placementKey
         if (pk != null) {
-            val def = Defs.buildings[pk] ?: return
+            val def = mod.building(pk) ?: return
             val wx = camX + lastTouchX / zoom
             val wy = camY + lastTouchY / zoom
             val tx = (wx / TILE - def.size / 2f).roundToInt()
@@ -457,15 +448,15 @@ class GameView(
         textPaint.textAlign = Paint.Align.LEFT
         textPaint.textSize = topH * 0.5f
         textPaint.color = Color.rgb(242, 197, 61)
-        canvas.drawText("₽ ${sim.credits[0].roundToInt()}", 12f, topH * 0.68f, textPaint)
+        canvas.drawText("${mod.labels.creditsSymbol} ${sim.credits[0].roundToInt()}", 12f, topH * 0.68f, textPaint)
 
         val prov = sim.powerProvided(0)
         val used = sim.powerUsed(0)
         textPaint.color = if (used >= prov) Color.rgb(255, 110, 110) else Color.rgb(160, 210, 255)
-        canvas.drawText("⚡ $used/$prov", 118f, topH * 0.68f, textPaint)
+        canvas.drawText("${mod.labels.powerSymbol} $used/$prov", 118f, topH * 0.68f, textPaint)
 
         textPaint.color = Color.rgb(200, 205, 212)
-        canvas.drawText("Юниты ${sim.unitCount(0)}/${Defs.UNIT_CAP}", 220f, topH * 0.68f, textPaint)
+        canvas.drawText("Юниты ${sim.unitCount(0)}/${mod.unitCap}", 220f, topH * 0.68f, textPaint)
 
         val bs = topH * 0.72f
         val btnPause = Btn(w - bs - 10f, 4f, bs, bs, "⏸", "pause")
@@ -543,8 +534,8 @@ class GameView(
         val pad = 8f
         val bw = 96f; val bh = 48f
         var x = pad; var y = barY - bh - 6f
-        for (key in Defs.buildMenu) {
-            val def = Defs.buildings[key] ?: continue
+        for (key in mod.buildMenu) {
+            val def = mod.building(key) ?: continue
             val dim = !sim.canAfford(0, def.cost)
             val b = Btn(x, y, bw, bh, def.name, "place:$key", dim)
             buttons.add(b)
@@ -570,8 +561,8 @@ class GameView(
         var x = pad
         val y = barY - bh - 6f
         for (key in selB.def.trains) {
-            val def = Defs.units[key] ?: continue
-            val dim = !sim.canAfford(0, def.cost) || sim.unitCount(0) >= Defs.UNIT_CAP
+            val def = mod.unit(key) ?: continue
+            val dim = !sim.canAfford(0, def.cost) || sim.unitCount(0) >= mod.unitCap
             val cnt = selB.queue.count { it.key == key }
             val btn = Btn(x, y, bw, bh, def.name + if (cnt > 0) " ($cnt)" else "", "train:$key", dim)
             buttons.add(btn)
@@ -644,7 +635,7 @@ class GameView(
         if (tb != null) {
             canvas.drawBitmap(tb, null, Rect(x.toInt(), y.toInt(), (x + s).toInt(), (y + s).toInt()), paint)
         }
-        val k = s / WORLD_W
+        val k = s / mod.worldW
         for (b in sim.buildings) {
             paint.color = playerColor(b.owner, false)
             val sz = (b.size * TILE * k).coerceAtLeast(3f)
@@ -677,8 +668,8 @@ class GameView(
     private fun clampCamera() {
         val vw = width / zoom
         val vh = height / zoom
-        camX = camX.coerceIn(0f, max(0f, WORLD_W - vw))
-        camY = camY.coerceIn(0f, max(0f, WORLD_H - vh))
+        camX = camX.coerceIn(0f, max(0f, mod.worldW - vw))
+        camY = camY.coerceIn(0f, max(0f, mod.worldH - vh))
     }
 
     private fun centerOn(wx: Float, wy: Float) {
@@ -784,8 +775,8 @@ class GameView(
         // миникарта
         if (mmRect.width() > 0f && mmRect.contains(sx, sy)) {
             centerOn(
-                (sx - mmRect.left) / mmRect.width() * WORLD_W,
-                (sy - mmRect.top) / mmRect.height() * WORLD_H
+                (sx - mmRect.left) / mmRect.width() * mod.worldW,
+                (sy - mmRect.top) / mmRect.height() * mod.worldH
             )
             return
         }
@@ -799,7 +790,7 @@ class GameView(
         // размещение здания
         val pk = placementKey
         if (pk != null) {
-            val def = Defs.buildings[pk]!!
+            val def = mod.building(pk)!!
             val tx = (wx / TILE - def.size / 2f).roundToInt()
             val ty = (wy / TILE - def.size / 2f).roundToInt()
             val site = sim.placeBuilding(0, pk, tx, ty)

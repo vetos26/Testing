@@ -129,6 +129,7 @@ class MainActivity : Activity() {
         gameView = null
         val mv = menuView ?: MenuView(
             this,
+            App.instance.mod,
             prefs,
             onStartGame = { diff -> startGame(diff) },
             onQuit = { finishAffinity() }
@@ -139,7 +140,7 @@ class MainActivity : Activity() {
     private fun startGame(difficulty: String) {
         menuView = null
         try {
-            val gv = GameView(this, sound ?: Sound(true).also { sound = it }, difficulty) {
+            val gv = GameView(this, App.instance.mod, sound ?: Sound(true).also { sound = it }, difficulty) {
                 runOnUiThread { showMenu() }
             }
             gameView = gv

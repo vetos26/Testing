@@ -1,0 +1,5 @@
+[
+  { "key": "easy",   "name": "ЛЕГКО",     "income": 0.8,  "wave0": 6, "waveStep": 4, "waveCap": 14, "miners": 5, "turrets": 0 },
+  { "key": "normal", "name": "НОРМАЛЬНО", "income": 1.0,  "wave0": 5, "waveStep": 3, "waveCap": 18, "miners": 7, "turrets": 1 },
+  { "key": "hard",   "name": "СЛОЖНО",    "income": 1.25, "wave0": 5, "waveStep": 2, "waveCap": 22, "miners": 9, "turrets": 2 }
+]

@@ -1,0 +1,6 @@
+[
+  { "key": "miner",  "name": "Шахтёр",   "cost": 700, "buildTime": 10,  "hp": 80,  "speed": 70, "dmg": 4,  "range": 14,  "atkCd": 1.0, "sight": 5, "radius": 10, "isMiner": true },
+  { "key": "rifle",  "name": "Стрелок",  "cost": 120, "buildTime": 5,   "hp": 90,  "speed": 78, "dmg": 8,  "range": 100, "atkCd": 0.8, "sight": 6, "radius": 9 },
+  { "key": "rocket", "name": "Ракетчик", "cost": 180, "buildTime": 7,   "hp": 70,  "speed": 76, "dmg": 22, "range": 165, "atkCd": 1.5, "sight": 6, "radius": 9, "projectile": true },
+  { "key": "tank",   "name": "Танк",     "cost": 650, "buildTime": 15,  "hp": 260, "speed": 92, "dmg": 30, "range": 140, "atkCd": 1.6, "sight": 7, "radius": 13, "projectile": true }
+]

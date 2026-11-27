@@ -1,4 +1,4 @@
-package com.arena.redradar.game
+package com.arena.redradar.engine
 
 import kotlin.math.abs
 import kotlin.math.ceil
@@ -47,9 +47,17 @@ private class MinHeap {
 }
 
 private class Grid {
-    val g = FloatArray(MAP_W * MAP_H) { Float.MAX_VALUE }
-    val parent = IntArray(MAP_W * MAP_H) { -1 }
-    val closed = BooleanArray(MAP_W * MAP_H)
+    var g = FloatArray(0)
+    var parent = IntArray(0)
+    var closed = BooleanArray(0)
+    fun ensure(w: Int, h: Int) {
+        if (g.size == w * h) {
+            reset(); return
+        }
+        g = FloatArray(w * h) { Float.MAX_VALUE }
+        parent = IntArray(w * h) { -1 }
+        closed = BooleanArray(w * h)
+    }
     fun reset() {
         g.fill(Float.MAX_VALUE)
         parent.fill(-1)
@@ -108,9 +116,9 @@ fun findPath(map: GameMap, sx0: Int, sy0: Int, gx0: Int, gy0: Int, maxNodes: Int
     if (sx == gx && sy == gy) return emptyList()
 
     val grid = Grid()
-    grid.reset()
-    val startI = sy * MAP_W + sx
-    val goalI = gy * MAP_W + gx
+    grid.ensure(map.w, map.h)
+    val startI = sy * map.w + sx
+    val goalI = gy * map.w + gx
     grid.g[startI] = 0f
     val heap = MinHeap()
 
@@ -131,12 +139,12 @@ fun findPath(map: GameMap, sx0: Int, sy0: Int, gx0: Int, gy0: Int, maxNodes: Int
         if (cur.i == goalI) { found = true; break }
         for (d in DIRS) {
             val nx = cur.x + d[0]; val ny = cur.y + d[1]
-            if (nx < 0 || ny < 0 || nx >= MAP_W || ny >= MAP_H) continue
+            if (nx < 0 || ny < 0 || nx >= map.w || ny >= map.h) continue
             if (!map.isPassable(nx, ny)) continue
             if (d[0] != 0 && d[1] != 0) {
                 if (!map.isPassable(cur.x + d[0], cur.y) || !map.isPassable(cur.x, cur.y + d[1])) continue
             }
-            val ni = ny * MAP_W + nx
+            val ni = ny * map.w + nx
             if (grid.closed[ni]) continue
             val ng = grid.g[cur.i] + d[2] / 100f
             if (ng < grid.g[ni]) {
@@ -153,7 +161,7 @@ fun findPath(map: GameMap, sx0: Int, sy0: Int, gx0: Int, gy0: Int, maxNodes: Int
     val tiles = ArrayList<Pair<Int, Int>>()
     var i = goalI
     while (i != -1 && i != startI) {
-        tiles.add(Pair(i % MAP_W, i / MAP_W))
+        tiles.add(Pair(i % map.w, i / map.w))
         i = grid.parent[i]
     }
     tiles.reverse()
@@ -161,8 +169,8 @@ fun findPath(map: GameMap, sx0: Int, sy0: Int, gx0: Int, gy0: Int, maxNodes: Int
 
     // сглаживание: жадно пропускаем точки с прямой видимостью
     val out = ArrayList<P>()
-    var cx = startI % MAP_W * TILE + TILE / 2f
-    var cy = startI / MAP_W * TILE + TILE / 2f
+    var cx = startI % map.w * TILE + TILE / 2f
+    var cy = startI / map.w * TILE + TILE / 2f
     var k = 0
     while (k < tiles.size) {
         var j = min(tiles.size - 1, k + 1)

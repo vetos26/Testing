@@ -1,11 +1,11 @@
-package com.arena.redradar.game
+package com.arena.redradar.engine
 
 import kotlin.math.hypot
 
 /** ИИ-противник: экономика, стройка, оборона, волны атак. */
 class AI(private val sim: Sim, private val pid: Int, diffKey: String) {
 
-    private val cfg = Difficulties.of(diffKey)
+    private val cfg = sim.mod.diff(diffKey)
     private var thinkT = 0f
     private var tacticsT = 0f
     private var waveSize = cfg.wave0
@@ -37,7 +37,7 @@ class AI(private val sim: Sim, private val pid: Int, diffKey: String) {
         // 1. шахтёры
         if (base != null && base.constructed) {
             val queued = base.queue.count { it.key == "miner" }
-            if (miners.size + queued < cfg.miners && sim.credits[pid] >= Defs.miner.cost) {
+            if (miners.size + queued < cfg.miners && sim.credits[pid] >= sim.mod.unit("miner")!!.cost) {
                 sim.train(base, "miner", silent = true)
             }
         }
@@ -64,7 +64,7 @@ class AI(private val sim: Sim, private val pid: Int, diffKey: String) {
 
         // 5. турели
         val turretN = all.count { it.def.key == "turret" }
-        if (turretN < cfg.turrets && sim.credits[pid] > Defs.turret.cost + 400 && base != null) {
+        if (turretN < cfg.turrets && sim.credits[pid] > sim.mod.building("turret")!!.cost + 400 && base != null) {
             placeTurret(base)
         }
 
@@ -86,15 +86,15 @@ class AI(private val sim: Sim, private val pid: Int, diffKey: String) {
             val key = if (b.def.key == "factory") "tank"
             else if (sim.credits[pid] > 900 && kotlin.random.Random.nextFloat() < 0.4f) "rocket"
             else "rifle"
-            if (sim.credits[pid] >= Defs.units[key]!!.cost) sim.train(b, key, silent = true)
+            if (sim.credits[pid] >= sim.mod.unit(key)!!.cost) sim.train(b, key, silent = true)
         }
     }
 
     private fun place(key: String, near: Building?): Boolean {
-        val def = Defs.buildings[key] ?: return false
+        val def = sim.mod.building(key) ?: return false
         if (sim.credits[pid] < def.cost) return false
-        val cx = near?.let { (it.x / TILE).toInt() } ?: MAP_W / 2
-        val cy = near?.let { (it.y / TILE).toInt() } ?: MAP_H / 2
+        val cx = near?.let { (it.x / TILE).toInt() } ?: sim.map.w / 2
+        val cy = near?.let { (it.y / TILE).toInt() } ?: sim.map.h / 2
         for (r in 2..12) {
             for (dy in -r..r) for (dx in -r..r) {
                 if (maxOf(kotlin.math.abs(dx), kotlin.math.abs(dy)) != r) continue
@@ -111,7 +111,7 @@ class AI(private val sim: Sim, private val pid: Int, diffKey: String) {
         val d = hypot(dx, dy).coerceAtLeast(1f)
         val tx = ((base.x + dx / d * 6f * TILE) / TILE).toInt()
         val ty = ((base.y + dy / d * 6f * TILE) / TILE).toInt()
-        val def = Defs.turret
+        val def = sim.mod.building("turret")!!
         if (sim.credits[pid] < def.cost) return false
         for (r in 0..4) {
             for (ddy in -r..r) for (ddx in -r..r) {

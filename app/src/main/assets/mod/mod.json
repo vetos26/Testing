@@ -1,0 +1,40 @@
+{
+  "id": "redradar",
+  "mapW": 56,
+  "mapH": 56,
+  "startCredits": 3000,
+  "unitCap": 40,
+  "buildMenu": ["power", "barracks", "factory", "turret", "base"],
+  "factions": [
+    { "name": "Красные", "color": [206, 62, 62], "colorDark": [140, 32, 32], "colorLight": [236, 116, 102], "sprite": "red" },
+    { "name": "Синие", "color": [74, 120, 216], "colorDark": [34, 58, 124], "colorLight": [126, 170, 240], "sprite": "blue" }
+  ],
+  "map": {
+    "starts": [[9, 45], [46, 10]],
+    "waterFreq": 0.085,
+    "dirtFreq": 0.11,
+    "waterT": 0.64,
+    "dirtT": 0.72,
+    "borderWater": 2,
+    "baseClearR": 4,
+    "midVeins": 6,
+    "oreBase": 250,
+    "oreVar": 150
+  },
+  "labels": {
+    "titleTop": "КРАСНЫЙ",
+    "titleMain": "РАДАР",
+    "subtitle": "стратегия в реальном времени",
+    "inspired": "вдохновлено Red Alert 2",
+    "version": "Версия 1.0 (движок RTS + мод)",
+    "creditsSymbol": "₽",
+    "powerSymbol": "⚡",
+    "buildingAbbr": {
+      "base": "ШТ",
+      "power": "ЭН",
+      "barracks": "КАЗ",
+      "factory": "ЗАВ",
+      "turret": "ТУР"
+    }
+  }
+}
