@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Bundle
+import android.view.Gravity
 import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -65,14 +66,14 @@ class MainActivity : Activity() {
         try { File(filesDir, "crash.txt").delete() } catch (_: Throwable) { }
     }
 
-    /** Экран с текстом последнего падения: тап — очистить и продолжить. */
+    /** Экран с текстом последнего падения: копирование и выход в меню. */
     private fun showCrashScreen(text: String) {
         val pad = (resources.displayMetrics.density * 12).toInt()
         val scroll = ScrollView(this)
         val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(pad, pad, pad, pad) }
         val head = TextView(this).apply {
             setText(
-                "ОШИБКА ПРОШЛОГО ЗАПУСКА\n(пошлите этот текст разработчику)\n\n— тап по экрану: продолжить —"
+                "ОШИБКА ПРОШЛОГО ЗАПУСКА\n(пошлите этот текст разработчику)"
             )
             setTextColor(Color.rgb(255, 140, 120))
             typeface = Typeface.DEFAULT_BOLD
@@ -83,12 +84,35 @@ class MainActivity : Activity() {
             setTextColor(Color.rgb(220, 224, 230))
             typeface = Typeface.MONOSPACE
             textSize = 11f
+            setTextIsSelectable(true)   // текст можно выделять пальцем вручную
         }
         box.addView(head)
         box.addView(body)
+
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+        fun mkButton(label: String, action: () -> Unit) = android.widget.Button(this).apply {
+            setText(label)
+            setOnClickListener { action() }
+        }
+        row.addView(mkButton("КОПИРОВАТЬ") {
+            try {
+                val cm = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("RedRadar", text))
+                android.widget.Toast.makeText(this, "Скопировано", android.widget.Toast.LENGTH_SHORT).show()
+            } catch (t: Throwable) {
+                App.instance.writeThrowable(t, "копирование ошибки")
+            }
+        })
+        row.addView(mkButton("В МЕНЮ") {
+            clearCrash()
+            showMenu()
+        })
+        box.addView(row)
         scroll.addView(box)
         setContentView(scroll)
-        scroll.setOnClickListener { clearCrash(); showMenu() }
     }
 
     // ---------- обычная работа ----------
