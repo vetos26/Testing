@@ -180,11 +180,11 @@ class Mod(
                 starts = listOf(Pair(9, 45), Pair(46, 10))
             )
             val labels = LabelSet(
-                titleTop = "КРАСНЫЙ",
-                titleMain = "РАДАР",
+                titleTop = "RTS",
+                titleMain = "ENGINE",
                 subtitle = "стратегия в реальном времени",
                 inspired = "вдохновлено Red Alert 2",
-                version = "Версия 1.0",
+                version = "RTS Engine — версия 1.0",
                 buildingAbbr = mapOf(
                     "base" to "ШТ", "power" to "ЭН", "barracks" to "КАЗ",
                     "factory" to "ЗАВ", "turret" to "ТУР"

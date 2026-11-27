@@ -22,11 +22,11 @@
     "oreVar": 150
   },
   "labels": {
-    "titleTop": "КРАСНЫЙ",
-    "titleMain": "РАДАР",
+    "titleTop": "RTS",
+    "titleMain": "ENGINE",
     "subtitle": "стратегия в реальном времени",
     "inspired": "вдохновлено Red Alert 2",
-    "version": "Версия 1.0 (движок RTS + мод)",
+    "version": "RTS Engine — версия 1.0",
     "creditsSymbol": "₽",
     "powerSymbol": "⚡",
     "buildingAbbr": {
